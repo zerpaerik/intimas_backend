@@ -1,0 +1,199 @@
+// Esquema de datos — Intimas backend (PostgreSQL)
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ───────── Autenticación / acceso ─────────
+model Role {
+  id          Int     @id // 1,2,7,10,11,12 (coinciden con el sistema original)
+  nombre      String
+  descripcion String?
+  users       User[]
+}
+
+model Sede {
+  id         Int        @id @default(autoincrement())
+  nombre     String
+  users      User[]
+  atenciones Atencion[]
+}
+
+model User {
+  id         Int        @id @default(autoincrement())
+  nombre     String
+  email      String     @unique
+  password   String
+  title      String?
+  roleId     Int
+  role       Role       @relation(fields: [roleId], references: [id])
+  sedeId     Int?
+  sede       Sede?      @relation(fields: [sedeId], references: [id])
+  atenciones Atencion[]
+  createdAt  DateTime   @default(now())
+}
+
+// ───────── Maestros (Archivos) ─────────
+model Paciente {
+  id              Int        @id @default(autoincrement())
+  nombres         String
+  apellidos       String
+  tipoDoc         String?
+  numDoc          String?
+  fechaNacimiento DateTime?
+  sexo            String?
+  telefono        String?
+  email           String?
+  ocupacion       String?
+  estadoCivil     String?
+  direccion       String?
+  atenciones      Atencion[]
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+}
+
+model Centro {
+  id            Int           @id @default(autoincrement())
+  nombre        String
+  direccion     String?
+  referencia    String?
+  profesionales Profesional[]
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+}
+
+model Laboratorio {
+  id         Int      @id @default(autoincrement())
+  nombre     String
+  direccion  String?
+  referencia String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Profesional {
+  id           Int       @id @default(autoincrement())
+  nombres      String
+  apellidos    String
+  cmp          String?
+  nacimiento   DateTime?
+  telefono     String?
+  especialidad String?
+  centroId     Int?
+  centro       Centro?   @relation(fields: [centroId], references: [id])
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model Personal {
+  id        Int      @id @default(autoincrement())
+  nombres   String
+  apellidos String
+  dni       String?
+  direccion String?
+  telefono  String?
+  email     String?
+  cargo     String?
+  tipo      String?
+  sesion    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Servicio {
+  id             Int       @id @default(autoincrement())
+  nombre         String
+  tipo           String?
+  precio         Float     @default(0)
+  porcentajePers Float     @default(0)
+  porcentajeProf Float     @default(0)
+  porcentajeTecn Float     @default(0)
+  paquetes       Paquete[] @relation("PaqueteServicios")
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model Analisis {
+  id         Int       @id @default(autoincrement())
+  nombre     String
+  precio     Float     @default(0)
+  costo      Float     @default(0)
+  porcentaje Float     @default(0)
+  tiempo     String?
+  material   String?
+  paquetes   Paquete[] @relation("PaqueteAnalisis")
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+}
+
+model Material {
+  id        Int      @id @default(autoincrement())
+  nombre    String
+  estatus   String   @default("Disponible")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Producto {
+  id            Int      @id @default(autoincrement())
+  nombre        String
+  categoria     String?
+  unidad        String?
+  minimoCentral Int      @default(0)
+  minimoLocal   Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Paquete {
+  id         Int        @id @default(autoincrement())
+  nombre     String
+  precio     Float      @default(0)
+  porcentaje Float      @default(0)
+  consultas  Int        @default(0)
+  controles  Int        @default(0)
+  servicios  Servicio[] @relation("PaqueteServicios")
+  analisis   Analisis[] @relation("PaqueteAnalisis")
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+}
+
+// ───────── Operacional: Atenciones ─────────
+model Atencion {
+  id            Int            @id @default(autoincrement())
+  fecha         DateTime       @default(now())
+  pacienteId    Int
+  paciente      Paciente       @relation(fields: [pacienteId], references: [id])
+  origenTipo    String         @default("Personal")
+  origenValor   String?
+  observaciones String?
+  total         Float          @default(0)
+  abono         Float          @default(0)
+  saldo         Float          @default(0)
+  estado        String         @default("Pendiente") // Pagado | Parcial | Pendiente
+  usuarioId     Int?
+  usuario       User?          @relation(fields: [usuarioId], references: [id])
+  sedeId        Int?
+  sede          Sede?          @relation(fields: [sedeId], references: [id])
+  items         AtencionItem[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@index([fecha])
+  @@index([pacienteId])
+}
+
+model AtencionItem {
+  id         Int      @id @default(autoincrement())
+  atencionId Int
+  atencion   Atencion @relation(fields: [atencionId], references: [id], onDelete: Cascade)
+  kind       String
+  nombre     String
+  monto      Float    @default(0)
+  abono      Float    @default(0)
+  pago       String   @default("Efectivo")
+}
