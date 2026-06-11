@@ -5,6 +5,7 @@ import {
   Get,
   Injectable,
   Module,
+  NotFoundException,
   Param,
   ParseIntPipe,
   Patch,
@@ -29,13 +30,53 @@ class CreatePacienteDto {
   @IsOptional() @IsString() ocupacion?: string;
   @IsOptional() @IsString() estadoCivil?: string;
   @IsOptional() @IsString() direccion?: string;
+  @IsOptional() @IsString() alergias?: string;
+  @IsOptional() @IsString() antPatologicos?: string;
+  @IsOptional() @IsString() antFamiliares?: string;
+  @IsOptional() @IsString() grupoSanguineo?: string;
 }
 class UpdatePacienteDto extends PartialType(CreatePacienteDto) {}
 
 @Injectable()
 class PacientesService extends BaseCrudService {
-  constructor(prisma: PrismaService) {
+  constructor(private readonly prisma: PrismaService) {
     super(prisma.paciente, ['nombres', 'apellidos', 'numDoc', 'email', 'telefono']);
+  }
+
+  async historial(id: number) {
+    const paciente = await this.prisma.paciente.findUnique({ where: { id } });
+    if (!paciente) throw new NotFoundException(`Paciente #${id} no encontrado`);
+
+    const atenciones = await this.prisma.atencion.findMany({
+      where: { pacienteId: id },
+      include: { items: true },
+      orderBy: { fecha: 'desc' },
+    });
+
+    const resultados = atenciones
+      .flatMap((a) =>
+        a.items
+          .filter((i) => ['Laboratorio', 'Ecografía', 'Rayos X'].includes(i.kind))
+          .map((i) => ({
+            nombre: i.nombre,
+            tipo: i.kind === 'Laboratorio' ? 'Laboratorio' : 'Servicio',
+            fecha: a.fecha,
+            estado: a.estado === 'Pagado' ? 'Entregado' : 'En proceso',
+          })),
+      )
+      .slice(0, 10);
+
+    return {
+      antecedentes: {
+        alergias: paciente.alergias,
+        antPatologicos: paciente.antPatologicos,
+        antFamiliares: paciente.antFamiliares,
+        grupoSanguineo: paciente.grupoSanguineo,
+      },
+      atenciones,
+      resultados,
+      stats: { atenciones: atenciones.length, resultados: resultados.length },
+    };
   }
 }
 
@@ -45,6 +86,9 @@ class PacientesController {
 
   @Get() findAll(@Query('search') search?: string) {
     return this.service.findAll(search);
+  }
+  @Get(':id/historial') historial(@Param('id', ParseIntPipe) id: number) {
+    return this.service.historial(id);
   }
   @Get(':id') findOne(@Param('id', ParseIntPipe) id: number) {
     return this.service.findOne(id);

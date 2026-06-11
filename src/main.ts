@@ -11,12 +11,24 @@ async function bootstrap() {
     new ValidationPipe({ whitelist: true, transform: true }),
   );
 
-  const origins = (process.env.CORS_ORIGIN ?? '*')
+  const allowed = (process.env.CORS_ORIGIN ?? '*')
     .split(',')
-    .map((s) => s.trim())
+    .map((s) => s.trim().replace(/\/+$/, '')) // sin barra final
     .filter(Boolean);
   app.enableCors({
-    origin: origins.includes('*') ? true : origins,
+    origin: (origin: string | undefined, cb: (err: Error | null, ok?: boolean) => void) => {
+      if (!origin) return cb(null, true); // curl / health checks (sin Origin)
+      if (allowed.includes('*')) return cb(null, true);
+      const clean = origin.replace(/\/+$/, '');
+      if (allowed.includes(clean)) return cb(null, true);
+      try {
+        // Conveniencia: permitir cualquier subdominio de Railway
+        if (/\.up\.railway\.app$/.test(new URL(origin).hostname)) return cb(null, true);
+      } catch {
+        /* origin inválido */
+      }
+      return cb(null, false);
+    },
     credentials: true,
   });
 

@@ -51,6 +51,10 @@ model Paciente {
   ocupacion       String?
   estadoCivil     String?
   direccion       String?
+  alergias        String?
+  antPatologicos  String?
+  antFamiliares   String?
+  grupoSanguineo  String?
   atenciones      Atencion[]
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt

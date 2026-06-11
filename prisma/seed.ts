@@ -163,9 +163,26 @@ async function main() {
     { nombres: 'Ana Paula', apellidos: 'Salazar Núñez', tipoDoc: 'DNI', numDoc: '76554321', fechaNacimiento: '2001-03-08', sexo: 'Femenino', telefono: '913882044', email: 'anapaula.s@gmail.com', ocupacion: 'Diseñadora', estadoCivil: 'Soltero(a)', direccion: 'Urb. Santa Rosa Mz. C Lt. 8' },
     { nombres: 'Carmen Rosa', apellidos: 'Díaz Paredes', tipoDoc: 'DNI', numDoc: '70019988', fechaNacimiento: '1995-06-11', sexo: 'Femenino', telefono: '938201577', email: 'carmen.diaz@gmail.com', ocupacion: 'Enfermera', estadoCivil: 'Soltero(a)', direccion: 'Calle Bolognesi 540' },
   ];
+  const ALERG = ['Ninguna conocida', 'Penicilina', 'AINEs', 'Sulfas', 'Ninguna conocida', 'Mariscos', 'Polen'];
+  const PATOL = ['Sin antecedentes relevantes', 'Hipertensión controlada', 'Anemia leve', 'Migraña', 'Diabetes tipo 2', 'Sin antecedentes relevantes', 'Hipotiroidismo'];
+  const FAMIL = ['Madre con diabetes tipo 2', 'Padre hipertenso', 'Sin antecedentes', 'Cáncer de mama (tía)', 'Sin antecedentes', 'Cardiopatía familiar', 'Sin antecedentes'];
+  const GRUPO = ['O+', 'A+', 'B+', 'O-', 'A-', 'AB+', 'O+'];
   const pacientes = [] as { id: number }[];
+  let pidx = 0;
   for (const p of pacData) {
-    pacientes.push(await prisma.paciente.create({ data: { ...p, fechaNacimiento: new Date(p.fechaNacimiento) } }));
+    pacientes.push(
+      await prisma.paciente.create({
+        data: {
+          ...p,
+          fechaNacimiento: new Date(p.fechaNacimiento),
+          alergias: ALERG[pidx % ALERG.length],
+          antPatologicos: PATOL[pidx % PATOL.length],
+          antFamiliares: FAMIL[pidx % FAMIL.length],
+          grupoSanguineo: GRUPO[pidx % GRUPO.length],
+        },
+      }),
+    );
+    pidx++;
   }
 
   // Paquetes (conectando servicios y análisis por nombre)
