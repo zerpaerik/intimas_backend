@@ -34,8 +34,9 @@ async function main() {
   });
 
   // Sedes
-  const principal = await prisma.sede.create({ data: { nombre: 'Sede Principal' } });
-  const intimas2 = await prisma.sede.create({ data: { nombre: 'Intimas 2' } });
+  // IDs explícitos y estables (coinciden con SEDES del frontend)
+  const principal = await prisma.sede.create({ data: { id: 1, nombre: 'Sede Principal' } });
+  const intimas2 = await prisma.sede.create({ data: { id: 2, nombre: 'Intimas 2' } });
 
   // Usuarios demo (contraseña: intimas123)
   const pass = await bcrypt.hash('intimas123', 10);

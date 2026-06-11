@@ -15,6 +15,7 @@ import { ProductosModule } from './productos/productos.module';
 import { MaterialModule } from './material/material.module';
 import { AtencionesModule } from './atenciones/atenciones.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { UsuariosModule } from './usuarios/usuarios.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
     MaterialModule,
     AtencionesModule,
     DashboardModule,
+    UsuariosModule,
   ],
   controllers: [AppController],
 })

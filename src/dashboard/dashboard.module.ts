@@ -58,10 +58,11 @@ class DashboardService {
       atencionesPorDia.push({ dia, atenciones: dayAts.length });
     }
 
+    // Distribuciones del día (coherentes con los KPIs)
     const pagoTotals: Record<string, number> = {};
     const servCount: Record<string, number> = {};
     const estadoCount: Record<string, number> = {};
-    for (const a of ats) {
+    for (const a of hoy) {
       estadoCount[a.estado] = (estadoCount[a.estado] ?? 0) + 1;
       for (const it of a.items) {
         pagoTotals[it.pago] = (pagoTotals[it.pago] ?? 0) + it.abono;
