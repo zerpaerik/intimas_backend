@@ -21,20 +21,25 @@ model Sede {
   nombre     String
   users      User[]
   atenciones Atencion[]
+  pagos      Pago[]
+  gastos     Gasto[]
 }
 
 model User {
-  id         Int        @id @default(autoincrement())
-  nombre     String
-  email      String     @unique
-  password   String
-  title      String?
-  roleId     Int
-  role       Role       @relation(fields: [roleId], references: [id])
-  sedeId     Int?
-  sede       Sede?      @relation(fields: [sedeId], references: [id])
-  atenciones Atencion[]
-  createdAt  DateTime   @default(now())
+  id                 Int        @id @default(autoincrement())
+  nombre             String
+  email              String     @unique
+  password           String
+  title              String?
+  roleId             Int
+  role               Role       @relation(fields: [roleId], references: [id])
+  sedeId             Int?
+  sede               Sede?      @relation(fields: [sedeId], references: [id])
+  atenciones         Atencion[] @relation("AtencionRegistrador")
+  atencionesAnuladas Atencion[] @relation("AtencionAnulador")
+  pagos              Pago[]
+  gastos             Gasto[]
+  createdAt          DateTime   @default(now())
 }
 
 // ───────── Maestros (Archivos) ─────────
@@ -112,7 +117,7 @@ model Servicio {
   id             Int       @id @default(autoincrement())
   nombre         String
   tipo           String?
-  precio         Float     @default(0)
+  precio         Decimal   @default(0) @db.Decimal(10, 2)
   porcentajePers Float     @default(0)
   porcentajeProf Float     @default(0)
   porcentajeTecn Float     @default(0)
@@ -124,8 +129,8 @@ model Servicio {
 model Analisis {
   id         Int       @id @default(autoincrement())
   nombre     String
-  precio     Float     @default(0)
-  costo      Float     @default(0)
+  precio     Decimal   @default(0) @db.Decimal(10, 2)
+  costo      Decimal   @default(0) @db.Decimal(10, 2)
   porcentaje Float     @default(0)
   tiempo     String?
   material   String?
@@ -156,7 +161,7 @@ model Producto {
 model Paquete {
   id         Int        @id @default(autoincrement())
   nombre     String
-  precio     Float      @default(0)
+  precio     Decimal    @default(0) @db.Decimal(10, 2)
   porcentaje Float      @default(0)
   consultas  Int        @default(0)
   controles  Int        @default(0)
@@ -175,20 +180,31 @@ model Atencion {
   origenTipo    String         @default("Personal")
   origenValor   String?
   observaciones String?
-  total         Float          @default(0)
-  abono         Float          @default(0)
-  saldo         Float          @default(0)
+  total         Decimal        @default(0) @db.Decimal(10, 2)
+  pagado        Decimal        @default(0) @db.Decimal(10, 2)
+  saldo         Decimal        @default(0) @db.Decimal(10, 2)
   estado        String         @default("Pendiente") // Pagado | Parcial | Pendiente
   usuarioId     Int?
-  usuario       User?          @relation(fields: [usuarioId], references: [id])
+  usuario       User?          @relation("AtencionRegistrador", fields: [usuarioId], references: [id])
   sedeId        Int?
   sede          Sede?          @relation(fields: [sedeId], references: [id])
   items         AtencionItem[]
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  pagos         Pago[]
+
+  // Anulación (soft delete) + auditoría
+  anulada         Boolean   @default(false)
+  anuladaAt       DateTime?
+  anuladaPorId    Int?
+  anuladaPor      User?     @relation("AtencionAnulador", fields: [anuladaPorId], references: [id])
+  motivoAnulacion String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([fecha])
   @@index([pacienteId])
+  @@index([sedeId])
+  @@index([anulada])
 }
 
 model AtencionItem {
@@ -197,7 +213,53 @@ model AtencionItem {
   atencion   Atencion @relation(fields: [atencionId], references: [id], onDelete: Cascade)
   kind       String
   nombre     String
-  monto      Float    @default(0)
-  abono      Float    @default(0)
-  pago       String   @default("Efectivo")
+  monto      Decimal  @default(0) @db.Decimal(10, 2)
+}
+
+// ───────── Finanzas: ledger de ingresos y egresos ─────────
+model Pago {
+  id         Int      @id @default(autoincrement())
+  atencionId Int
+  atencion   Atencion @relation(fields: [atencionId], references: [id], onDelete: Cascade)
+  monto      Decimal  @db.Decimal(10, 2)
+  metodo     String   @default("Efectivo") // Efectivo | Tarjeta | Depósito | Yape
+  tipo       String   @default("ABONO_INICIAL") // ABONO_INICIAL | COBRO
+  fecha      DateTime @default(now())
+  sedeId     Int?
+  sede       Sede?    @relation(fields: [sedeId], references: [id])
+  usuarioId  Int?
+  usuario    User?    @relation(fields: [usuarioId], references: [id])
+  anulado    Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@index([fecha])
+  @@index([sedeId])
+  @@index([metodo])
+  @@index([atencionId])
+  @@index([anulado])
+}
+
+model Gasto {
+  id              Int       @id @default(autoincrement())
+  fecha           DateTime  @default(now())
+  categoria       String?
+  descripcion     String
+  monto           Decimal   @db.Decimal(10, 2)
+  metodo          String    @default("Efectivo")
+  proveedor       String?
+  sedeId          Int?
+  sede            Sede?     @relation(fields: [sedeId], references: [id])
+  usuarioId       Int?
+  usuario         User?     @relation(fields: [usuarioId], references: [id])
+  anulada         Boolean   @default(false)
+  anuladaAt       DateTime?
+  anuladaPorId    Int?
+  motivoAnulacion String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([fecha])
+  @@index([sedeId])
+  @@index([categoria])
+  @@index([anulada])
 }

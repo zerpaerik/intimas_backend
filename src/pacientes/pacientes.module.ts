@@ -48,8 +48,8 @@ class PacientesService extends BaseCrudService {
     if (!paciente) throw new NotFoundException(`Paciente #${id} no encontrado`);
 
     const atenciones = await this.prisma.atencion.findMany({
-      where: { pacienteId: id },
-      include: { items: true },
+      where: { pacienteId: id, anulada: false },
+      include: { items: true, pagos: { where: { anulado: false }, orderBy: { fecha: 'asc' } } },
       orderBy: { fecha: 'desc' },
     });
 

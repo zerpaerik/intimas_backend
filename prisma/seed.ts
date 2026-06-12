@@ -5,6 +5,8 @@ const prisma = new PrismaClient();
 
 async function main() {
   // Limpieza (respetando FKs)
+  await prisma.pago.deleteMany();
+  await prisma.gasto.deleteMany();
   await prisma.atencionItem.deleteMany();
   await prisma.atencion.deleteMany();
   await prisma.user.deleteMany();
@@ -204,29 +206,49 @@ async function main() {
     });
   }
 
-  // Atenciones de ejemplo
-  const mkTotals = (items: { monto: number; abono: number }[]) => {
+  // Atenciones de ejemplo (con ledger de pagos)
+  const admin = await prisma.user.findFirst({ where: { roleId: 1 } });
+  const adminId = admin?.id ?? null;
+
+  type SeedItem = { kind: string; nombre: string; monto: number };
+  type SeedPago = { monto: number; metodo: string };
+  async function crearAtencion(
+    pacienteId: number, origenTipo: string, origenValor: string,
+    items: SeedItem[], pagos: SeedPago[], obs = '',
+  ) {
     const total = items.reduce((a, b) => a + b.monto, 0);
-    const abono = items.reduce((a, b) => a + b.abono, 0);
-    const saldo = total - abono;
-    return { total, abono, saldo, estado: saldo <= 0 ? 'Pagado' : abono <= 0 ? 'Pendiente' : 'Parcial' };
-  };
-  const at1Items = [
-    { kind: 'Ecografía', nombre: 'Ecografía obstétrica', monto: 80, abono: 80, pago: 'Efectivo' },
-    { kind: 'Consulta', nombre: 'Consulta ginecológica', monto: 60, abono: 60, pago: 'Yape' },
-  ];
-  await prisma.atencion.create({
-    data: {
-      pacienteId: pacientes[0].id, origenTipo: 'Profesional', origenValor: 'Patricia Núñez Salinas',
-      observaciones: '', ...mkTotals(at1Items), items: { create: at1Items },
-    },
-  });
-  const at2Items = [{ kind: 'Paquete', nombre: 'Paquete Control Ginecológico', monto: 180, abono: 100, pago: 'Efectivo' }];
-  await prisma.atencion.create({
-    data: {
-      pacienteId: pacientes[5].id, origenTipo: 'Profesional', origenValor: 'Roberto Aguilar Pérez',
-      observaciones: 'Abono parcial, completa la próxima visita.', ...mkTotals(at2Items), items: { create: at2Items },
-    },
+    const pagado = pagos.reduce((a, b) => a + b.monto, 0);
+    const saldo = total - pagado;
+    const estado = saldo <= 0 ? 'Pagado' : pagado <= 0 ? 'Pendiente' : 'Parcial';
+    await prisma.atencion.create({
+      data: {
+        pacienteId, origenTipo, origenValor, observaciones: obs,
+        sedeId: 1, usuarioId: adminId, total, pagado, saldo, estado,
+        items: { create: items },
+        pagos: { create: pagos.map((p) => ({ monto: p.monto, metodo: p.metodo, tipo: 'ABONO_INICIAL', sedeId: 1, usuarioId: adminId })) },
+      },
+    });
+  }
+
+  await crearAtencion(
+    pacientes[0].id, 'Profesional', 'Patricia Núñez Salinas',
+    [{ kind: 'Ecografía', nombre: 'Ecografía obstétrica', monto: 80 }, { kind: 'Consulta', nombre: 'Consulta ginecológica', monto: 60 }],
+    [{ monto: 80, metodo: 'Efectivo' }, { monto: 60, metodo: 'Yape' }],
+  );
+  await crearAtencion(
+    pacientes[5].id, 'Profesional', 'Roberto Aguilar Pérez',
+    [{ kind: 'Paquete', nombre: 'Paquete Control Ginecológico', monto: 180 }],
+    [{ monto: 100, metodo: 'Efectivo' }],
+    'Abono parcial, completa la próxima visita.',
+  );
+
+  // Gastos de ejemplo
+  await prisma.gasto.createMany({
+    data: [
+      { descripcion: 'Compra de insumos de laboratorio', categoria: 'Insumos', monto: 240, metodo: 'Efectivo', proveedor: 'BioSupply S.A.C.', sedeId: 1, usuarioId: adminId },
+      { descripcion: 'Recibo de luz', categoria: 'Servicios', monto: 380, metodo: 'Depósito', sedeId: 1, usuarioId: adminId },
+      { descripcion: 'Mantenimiento de ecógrafo', categoria: 'Mantenimiento', monto: 150, metodo: 'Efectivo', proveedor: 'TecnoMed', sedeId: 1, usuarioId: adminId },
+    ],
   });
 
   console.log('Seed completado ✓');
