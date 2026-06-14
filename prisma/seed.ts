@@ -5,6 +5,11 @@ const prisma = new PrismaClient();
 
 async function main() {
   // Limpieza (respetando FKs)
+  await prisma.historiaClinica.deleteMany();
+  await prisma.controlPrenatal.deleteMany();
+  await prisma.consulta.deleteMany();
+  await prisma.antecedenteObstetrico.deleteMany();
+  await prisma.tipoConsulta.deleteMany();
   await prisma.pago.deleteMany();
   await prisma.gasto.deleteMany();
   await prisma.atencionItem.deleteMany();
@@ -100,6 +105,17 @@ async function main() {
   ];
   const anaId: Record<string, number> = {};
   for (const a of anaData) anaId[a.nombre] = (await prisma.analisis.create({ data: a })).id;
+
+  // Tipos de consulta
+  const tipoConData = [
+    { nombre: 'Consulta ginecológica', precio: 60, especialidad: 'Ginecología', prenatal: false },
+    { nombre: 'Control prenatal', precio: 50, especialidad: 'Obstetricia', prenatal: true },
+    { nombre: 'Consulta psicológica', precio: 120, especialidad: 'Psicología', prenatal: false },
+    { nombre: 'Medicina general', precio: 40, especialidad: 'Medicina General', prenatal: false },
+    { nombre: 'Consulta nutricional', precio: 70, especialidad: 'Nutrición', prenatal: false },
+  ];
+  const tipoConId: Record<string, number> = {};
+  for (const t of tipoConData) tipoConId[t.nombre] = (await prisma.tipoConsulta.create({ data: t })).id;
 
   // Profesionales
   const profData = [
@@ -249,6 +265,30 @@ async function main() {
       { descripcion: 'Recibo de luz', categoria: 'Servicios', monto: 380, metodo: 'Depósito', sedeId: 1, usuarioId: adminId },
       { descripcion: 'Mantenimiento de ecógrafo', categoria: 'Mantenimiento', monto: 150, metodo: 'Efectivo', proveedor: 'TecnoMed', sedeId: 1, usuarioId: adminId },
     ],
+  });
+
+  // Consultas / historias / controles de ejemplo
+  const profGine = await prisma.profesional.findFirst({ where: { especialidad: 'Ginecología' } });
+  const profObst = await prisma.profesional.findFirst({ where: { especialidad: 'Obstetricia' } });
+  await prisma.consulta.create({
+    data: { pacienteId: pacientes[2].id, tipoConsultaId: tipoConId['Consulta ginecológica'], tipoNombre: 'Consulta ginecológica', especialidad: 'Ginecología', especialistaId: profGine?.id ?? null, estado: 'Pendiente', sedeId: 1, usuarioId: adminId },
+  });
+  const cAtendida = await prisma.consulta.create({
+    data: { pacienteId: pacientes[0].id, tipoConsultaId: tipoConId['Consulta ginecológica'], tipoNombre: 'Consulta ginecológica', especialidad: 'Ginecología', especialistaId: profGine?.id ?? null, estado: 'Atendida', sedeId: 1, usuarioId: adminId },
+  });
+  await prisma.historiaClinica.create({
+    data: {
+      consultaId: cAtendida.id, pacienteId: pacientes[0].id, especialistaId: profGine?.id ?? null,
+      motivo: 'Control anual', presionArterial: '110/70', pulso: '72', temperatura: '36.6', peso: '62', talla: '1.62',
+      examenFisico: 'Sin hallazgos patológicos.', diagnosticoPresuntivo: 'Paciente sana',
+      plan: 'Control en 1 año, PAP de rutina.', proximaCita: 'En 12 meses',
+    },
+  });
+  await prisma.consulta.create({
+    data: { pacienteId: pacientes[5].id, tipoConsultaId: tipoConId['Control prenatal'], tipoNombre: 'Control prenatal', especialidad: 'Obstetricia', prenatal: true, especialistaId: profObst?.id ?? null, estado: 'Pendiente', sedeId: 1, usuarioId: adminId },
+  });
+  await prisma.antecedenteObstetrico.create({
+    data: { pacienteId: pacientes[5].id, gestas: 1, partos: 0, abortos: 0, cesareas: 0, hijosVivos: 0, fum: new Date('2026-01-10'), fpp: new Date('2026-10-17'), tipoSangre: 'O+' },
   });
 
   console.log('Seed completado ✓');

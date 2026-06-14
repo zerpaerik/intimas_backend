@@ -18,6 +18,8 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { UsuariosModule } from './usuarios/usuarios.module';
 import { GastosModule } from './gastos/gastos.module';
 import { ReportesModule } from './reportes/reportes.module';
+import { TiposConsultaModule } from './tipos-consulta/tipos-consulta.module';
+import { ConsultasModule } from './consultas/consultas.module';
 
 @Module({
   imports: [
@@ -39,6 +41,8 @@ import { ReportesModule } from './reportes/reportes.module';
     UsuariosModule,
     GastosModule,
     ReportesModule,
+    TiposConsultaModule,
+    ConsultasModule,
   ],
   controllers: [AppController],
 })

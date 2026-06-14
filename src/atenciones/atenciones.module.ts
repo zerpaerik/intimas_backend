@@ -4,7 +4,7 @@ import {
 } from '@nestjs/common';
 import { PartialType } from '@nestjs/mapped-types';
 import { Type } from 'class-transformer';
-import { IsArray, IsInt, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
+import { IsArray, IsBoolean, IsInt, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthModule, JwtAuthGuard } from '../auth/auth.module';
@@ -20,6 +20,13 @@ class PagoInputDto {
   @Type(() => Number) @IsNumber() monto: number;
   @IsString() metodo: string;
 }
+class ConsultaInputDto {
+  @IsOptional() @Type(() => Number) @IsInt() tipoConsultaId?: number;
+  @IsString() tipoNombre: string;
+  @IsOptional() @IsString() especialidad?: string;
+  @IsOptional() @IsBoolean() prenatal?: boolean;
+  @IsOptional() @Type(() => Number) @IsInt() especialistaId?: number;
+}
 class CreateAtencionDto {
   @Type(() => Number) @IsInt() pacienteId: number;
   @IsOptional() @IsString() origenTipo?: string;
@@ -28,6 +35,7 @@ class CreateAtencionDto {
   @IsOptional() @Type(() => Number) @IsInt() sedeId?: number;
   @IsArray() @ValidateNested({ each: true }) @Type(() => ItemDto) items: ItemDto[];
   @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => PagoInputDto) pagos?: PagoInputDto[];
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => ConsultaInputDto) consultas?: ConsultaInputDto[];
 }
 class UpdateAtencionDto extends PartialType(CreateAtencionDto) {}
 class AnularDto {
@@ -45,6 +53,13 @@ const INCLUDE = {
   usuario: { select: { id: true, nombre: true } },
   anuladaPor: { select: { id: true, nombre: true } },
   sede: { select: { id: true, nombre: true } },
+  consultas: {
+    include: {
+      especialista: { select: { id: true, nombres: true, apellidos: true } },
+      historia: { select: { id: true } },
+      control: { select: { id: true } },
+    },
+  },
 };
 
 function sameDay(a: Date, b: Date) {
@@ -116,6 +131,23 @@ class AtencionesService {
             monto: D(p.monto),
             metodo: p.metodo,
             tipo: 'ABONO_INICIAL',
+            sedeId: at.sedeId,
+            usuarioId: at.usuarioId,
+          })),
+        });
+      }
+      const consultas = dto.consultas ?? [];
+      if (consultas.length) {
+        await tx.consulta.createMany({
+          data: consultas.map((co) => ({
+            pacienteId: dto.pacienteId,
+            atencionId: at.id,
+            tipoConsultaId: co.tipoConsultaId ?? null,
+            tipoNombre: co.tipoNombre,
+            especialidad: co.especialidad ?? null,
+            prenatal: co.prenatal ?? false,
+            especialistaId: co.especialistaId ?? null,
+            estado: 'Pendiente',
             sedeId: at.sedeId,
             usuarioId: at.usuarioId,
           })),
