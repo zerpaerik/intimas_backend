@@ -244,6 +244,7 @@ model Gasto {
   fecha           DateTime  @default(now())
   categoria       String?
   descripcion     String
+  nota            String?
   monto           Decimal   @db.Decimal(10, 2)
   metodo          String    @default("Efectivo")
   proveedor       String?

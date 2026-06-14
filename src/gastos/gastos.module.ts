@@ -15,6 +15,7 @@ class CreateGastoDto {
   @IsString() descripcion: string;
   @Type(() => Number) @IsNumber() monto: number;
   @IsOptional() @IsString() categoria?: string;
+  @IsOptional() @IsString() nota?: string;
   @IsOptional() @IsString() metodo?: string;
   @IsOptional() @IsString() proveedor?: string;
   @IsOptional() @Type(() => Number) @IsInt() sedeId?: number;
@@ -65,6 +66,7 @@ class GastosService {
         descripcion: dto.descripcion,
         monto: D(dto.monto),
         categoria: dto.categoria,
+        nota: dto.nota,
         metodo: dto.metodo ?? 'Efectivo',
         proveedor: dto.proveedor,
         sedeId: dto.sedeId ?? null,
@@ -83,6 +85,7 @@ class GastosService {
       data: {
         descripcion: dto.descripcion,
         categoria: dto.categoria,
+        nota: dto.nota,
         metodo: dto.metodo,
         proveedor: dto.proveedor,
         sedeId: dto.sedeId,
