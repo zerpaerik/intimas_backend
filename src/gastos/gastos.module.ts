@@ -19,7 +19,14 @@ class CreateGastoDto {
   @IsOptional() @IsString() metodo?: string;
   @IsOptional() @IsString() proveedor?: string;
   @IsOptional() @Type(() => Number) @IsInt() sedeId?: number;
-  @IsOptional() @Transform(({ value }) => (value ? new Date(value) : undefined)) fecha?: Date;
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (!value) return undefined;
+    const v = String(value);
+    // Fecha "solo día" (YYYY-MM-DD) → interpretar como hora LOCAL (Perú), no UTC.
+    return new Date(/^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T12:00:00` : v);
+  })
+  fecha?: Date;
 }
 class UpdateGastoDto extends PartialType(CreateGastoDto) {}
 class AnularDto {

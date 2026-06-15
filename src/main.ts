@@ -3,6 +3,10 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 
+// Zona horaria fija: Perú (UTC-5). Garantiza que "el día en curso" del dashboard,
+// reportes y cierre de caja cuadre con la hora local del cliente, no con UTC del server.
+process.env.TZ = process.env.TZ || 'America/Lima';
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
