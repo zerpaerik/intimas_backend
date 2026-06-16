@@ -60,9 +60,19 @@ model Paciente {
   antPatologicos  String?
   antFamiliares   String?
   grupoSanguineo  String?
+  // Antecedentes del formato Historia Clínica (se cargan una vez, reutilizables)
+  antPersonales      String?
+  antEpidemiologicos String?
+  antQuirurgicos     String?
+  antOtros           String?
+  facebook           String?
+  // Contacto familiar / acompañante
+  familiarNombre     String?
+  familiarParentesco String?
+  familiarDni        String?
   atenciones      Atencion[]
   consultas       Consulta[]
-  antecedenteObst AntecedenteObstetrico?
+  gestaciones     Gestacion[]
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt
 }
@@ -96,6 +106,9 @@ model Profesional {
   especialidad String?
   centroId     Int?
   centro       Centro?   @relation(fields: [centroId], references: [id])
+  consultorio  String?
+  turno        String?
+  codigoSalud  String?
   consultas    Consulta[]
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
@@ -308,68 +321,135 @@ model Consulta {
 }
 
 model HistoriaClinica {
-  id                    Int      @id @default(autoincrement())
-  consultaId            Int      @unique
-  consulta              Consulta @relation(fields: [consultaId], references: [id], onDelete: Cascade)
-  pacienteId            Int
-  especialistaId        Int?
-  fecha                 DateTime @default(now())
-  motivo                String?
-  presionArterial       String?
-  pulso                 String?
-  temperatura           String?
-  peso                  String?
-  talla                 String?
-  examenFisico          String?
-  diagnosticoPresuntivo String?
-  diagnosticoDefinitivo String?
-  cie                   String?
-  plan                  String?
-  observaciones         String?
-  proximaCita           String?
-  datosExtra            Json?
-  usuarioId             Int?
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  id              Int      @id @default(autoincrement())
+  consultaId      Int      @unique
+  consulta        Consulta @relation(fields: [consultaId], references: [id], onDelete: Cascade)
+  pacienteId      Int
+  especialistaId  Int?
+  fecha           DateTime @default(now())
+  // 2 · Enfermedad actual
+  enfInicio       String?
+  enfCurso        String?
+  enfRelato       String?
+  // 4 · Funciones vitales + examen general
+  peso            String?
+  fc              String?
+  fr              String?
+  presionArterial String?
+  talla           String?
+  temperatura     String?
+  examenGeneral   String?
+  // 6 · Procedimientos / 8 · Observaciones
+  procedimientos  String?
+  observaciones   String?
+  diagnosticos    Diagnostico[]
+  tratamientos    Tratamiento[]
+  usuarioId       Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Diagnostico {
+  id          Int             @id @default(autoincrement())
+  historiaId  Int
+  historia    HistoriaClinica @relation(fields: [historiaId], references: [id], onDelete: Cascade)
+  cie10       String
+  descripcion String?
+}
+
+model Tratamiento {
+  id           Int             @id @default(autoincrement())
+  historiaId   Int
+  historia     HistoriaClinica @relation(fields: [historiaId], references: [id], onDelete: Cascade)
+  medicamento  String
+  presentacion String?
+  cantidad     String?
+  dosis        String?
+  dias         String?
+}
+
+model Cie10 {
+  codigo      String @id
+  descripcion String
+
+  @@index([descripcion])
 }
 
 model ControlPrenatal {
-  id                 Int      @id @default(autoincrement())
-  consultaId         Int      @unique
-  consulta           Consulta @relation(fields: [consultaId], references: [id], onDelete: Cascade)
+  id                 Int        @id @default(autoincrement())
+  consultaId         Int        @unique
+  consulta           Consulta   @relation(fields: [consultaId], references: [id], onDelete: Cascade)
+  gestacionId        Int?
+  gestacion          Gestacion? @relation(fields: [gestacionId], references: [id], onDelete: SetNull)
   pacienteId         Int
   especialistaId     Int?
-  fecha              DateTime @default(now())
+  fecha              DateTime   @default(now())
   semanaGestacional  Int?
   peso               String?
+  temperatura        String?
   presionArterial    String?
-  fcf                String?
+  pulso              String?
   alturaUterina      String?
+  presentacion       String?
+  fcf                String?
   movimientosFetales String?
   edema              String?
+  consejeria         String?
+  sulfatoFerroso     String?
+  perfilBiofisico    String?
+  serologia          String?
+  glucosa            String?
+  vih                String?
+  hemoglobina        String?
   examenFisico       String?
   diagnostico        String?
+  diagDefinitivo     String?
+  exAux              String?
   plan               String?
   proximaCita        String?
   observaciones      String?
   usuarioId          Int?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+
+  @@index([gestacionId])
 }
 
-model AntecedenteObstetrico {
-  id            Int       @id @default(autoincrement())
-  pacienteId    Int       @unique
-  paciente      Paciente  @relation(fields: [pacienteId], references: [id])
-  gestas        Int?
-  partos        Int?
-  abortos       Int?
-  cesareas      Int?
-  hijosVivos    Int?
-  fum           DateTime?
-  fpp           DateTime?
-  tipoSangre    String?
-  observaciones String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+// Gestación = serie de controles prenatales (carné). Se cierra al terminar el embarazo.
+model Gestacion {
+  id             Int               @id @default(autoincrement())
+  pacienteId     Int
+  paciente       Paciente          @relation(fields: [pacienteId], references: [id])
+  estado         String            @default("Abierta") // Abierta | Cerrada
+  // Antecedentes obstétricos de esta gestación
+  gestas         Int?
+  partos         Int?
+  abortos        Int?
+  cesareas       Int?
+  vaginales      Int?
+  nacidosVivos   Int?
+  viven          Int?
+  nacidosMuertos Int?
+  // Cabecera del embarazo
+  fum            DateTime?
+  fpp            DateTime?
+  ecoeg          String?
+  tipoSangre     String?
+  factorRh       String?
+  // Exámenes de base
+  orina          String?
+  urea           String?
+  creatinina     String?
+  bk             String?
+  torch          String?
+  observaciones  String?
+  // Cierre
+  fechaCierre    DateTime?
+  motivoCierre   String?
+  controles      ControlPrenatal[]
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@index([pacienteId])
+  @@index([estado])
 }

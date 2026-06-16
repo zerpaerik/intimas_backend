@@ -5,11 +5,14 @@ const prisma = new PrismaClient();
 
 async function main() {
   // Limpieza (respetando FKs)
+  await prisma.diagnostico.deleteMany();
+  await prisma.tratamiento.deleteMany();
   await prisma.historiaClinica.deleteMany();
   await prisma.controlPrenatal.deleteMany();
   await prisma.consulta.deleteMany();
-  await prisma.antecedenteObstetrico.deleteMany();
+  await prisma.gestacion.deleteMany();
   await prisma.tipoConsulta.deleteMany();
+  await prisma.cie10.deleteMany();
   await prisma.pago.deleteMany();
   await prisma.gasto.deleteMany();
   await prisma.atencionItem.deleteMany();
@@ -117,6 +120,42 @@ async function main() {
   const tipoConId: Record<string, number> = {};
   for (const t of tipoConData) tipoConId[t.nombre] = (await prisma.tipoConsulta.create({ data: t })).id;
 
+  // Catálogo CIE-10 (set común gineco / obstetricia / medicina general)
+  await prisma.cie10.createMany({
+    data: [
+      { codigo: 'Z00.0', descripcion: 'Examen médico general' },
+      { codigo: 'Z01.4', descripcion: 'Examen ginecológico (de rutina)' },
+      { codigo: 'Z30.9', descripcion: 'Atención para la anticoncepción, no especificada' },
+      { codigo: 'Z34.9', descripcion: 'Supervisión de embarazo normal, no especificado' },
+      { codigo: 'Z39.1', descripcion: 'Atención y examen de la madre en lactancia' },
+      { codigo: 'N76.0', descripcion: 'Vaginitis aguda' },
+      { codigo: 'N72', descripcion: 'Enfermedad inflamatoria del cuello uterino' },
+      { codigo: 'N89.8', descripcion: 'Otros trastornos no inflamatorios de la vagina' },
+      { codigo: 'N94.6', descripcion: 'Dismenorrea, no especificada' },
+      { codigo: 'N91.2', descripcion: 'Amenorrea, no especificada' },
+      { codigo: 'N92.0', descripcion: 'Menstruación excesiva y frecuente con ciclo regular' },
+      { codigo: 'N95.1', descripcion: 'Estados menopáusicos y climatéricos femeninos' },
+      { codigo: 'B37.3', descripcion: 'Candidiasis de la vulva y de la vagina' },
+      { codigo: 'A59.0', descripcion: 'Tricomoniasis urogenital' },
+      { codigo: 'O23.9', descripcion: 'Infección de vías urinarias en el embarazo' },
+      { codigo: 'O26.9', descripcion: 'Complicación relacionada con el embarazo' },
+      { codigo: 'D50.9', descripcion: 'Anemia por deficiencia de hierro' },
+      { codigo: 'E66.9', descripcion: 'Obesidad, no especificada' },
+      { codigo: 'E11.9', descripcion: 'Diabetes mellitus tipo 2, sin complicaciones' },
+      { codigo: 'I10', descripcion: 'Hipertensión esencial (primaria)' },
+      { codigo: 'J00', descripcion: 'Rinofaringitis aguda (resfriado común)' },
+      { codigo: 'J02.9', descripcion: 'Faringitis aguda, no especificada' },
+      { codigo: 'A09', descripcion: 'Diarrea y gastroenteritis de presunto origen infeccioso' },
+      { codigo: 'K30', descripcion: 'Dispepsia funcional' },
+      { codigo: 'M54.5', descripcion: 'Lumbago no especificado' },
+      { codigo: 'R51', descripcion: 'Cefalea' },
+      { codigo: 'R10.4', descripcion: 'Dolor abdominal, no especificado' },
+      { codigo: 'F41.9', descripcion: 'Trastorno de ansiedad, no especificado' },
+      { codigo: 'F32.9', descripcion: 'Episodio depresivo, no especificado' },
+      { codigo: 'L20.9', descripcion: 'Dermatitis atópica, no especificada' },
+    ],
+  });
+
   // Profesionales
   const profData = [
     { nombres: 'Patricia', apellidos: 'Núñez Salinas', cmp: 'CMP 45821', nacimiento: '1980-03-12', especialidad: 'Ginecología', centro: 'Sede Principal', telefono: '987112233' },
@@ -133,6 +172,7 @@ async function main() {
         nombres: p.nombres, apellidos: p.apellidos, cmp: p.cmp,
         nacimiento: new Date(p.nacimiento), telefono: p.telefono,
         especialidad: p.especialidad, centroId: centroId[p.centro] ?? null,
+        consultorio: 'Consultorio 1', turno: 'Mañana', codigoSalud: p.cmp ?? null,
       },
     });
   }
@@ -279,16 +319,40 @@ async function main() {
   await prisma.historiaClinica.create({
     data: {
       consultaId: cAtendida.id, pacienteId: pacientes[0].id, especialistaId: profGine?.id ?? null,
-      motivo: 'Control anual', presionArterial: '110/70', pulso: '72', temperatura: '36.6', peso: '62', talla: '1.62',
-      examenFisico: 'Sin hallazgos patológicos.', diagnosticoPresuntivo: 'Paciente sana',
-      plan: 'Control en 1 año, PAP de rutina.', proximaCita: 'En 12 meses',
+      enfInicio: 'Insidioso', enfCurso: 'Estacionario', enfRelato: 'Acude para control ginecológico anual.',
+      peso: '62', fc: '72', fr: '18', presionArterial: '110/70', talla: '1.62', temperatura: '36.6',
+      examenGeneral: 'Paciente en buen estado general, sin hallazgos patológicos.',
+      observaciones: 'Próxima cita en 12 meses. PAP de rutina.',
+      diagnosticos: { create: [{ cie10: 'Z01.4', descripcion: 'Examen ginecológico de rutina' }] },
+      tratamientos: { create: [{ medicamento: 'Ácido fólico 1mg', presentacion: 'Tableta', cantidad: '30', dosis: '1 diaria', dias: '30' }] },
     },
   });
+  // Gestación abierta (carné) de Ana Paula, con 2 controles previos + 1 control pendiente
+  const gest = await prisma.gestacion.create({
+    data: {
+      pacienteId: pacientes[5].id, estado: 'Abierta',
+      gestas: 2, partos: 1, abortos: 0, cesareas: 0, vaginales: 1, nacidosVivos: 1, viven: 1, nacidosMuertos: 0,
+      fum: new Date('2026-01-10'), fpp: new Date('2026-10-17'), tipoSangre: 'O', factorRh: 'RH +',
+    },
+  });
+  const ctrlSeed = [
+    { sem: 14, peso: '60', pa: '110/70', au: '14', fcf: '148', fecha: new Date('2026-04-10') },
+    { sem: 18, peso: '62', pa: '110/70', au: '18', fcf: '150', fecha: new Date('2026-05-12') },
+  ];
+  for (const cd of ctrlSeed) {
+    const cc = await prisma.consulta.create({
+      data: { pacienteId: pacientes[5].id, tipoConsultaId: tipoConId['Control prenatal'], tipoNombre: 'Control prenatal', especialidad: 'Obstetricia', prenatal: true, especialistaId: profObst?.id ?? null, estado: 'Atendida', sedeId: 1, usuarioId: adminId, fecha: cd.fecha },
+    });
+    await prisma.controlPrenatal.create({
+      data: {
+        consultaId: cc.id, gestacionId: gest.id, pacienteId: pacientes[5].id, especialistaId: profObst?.id ?? null, fecha: cd.fecha,
+        semanaGestacional: cd.sem, peso: cd.peso, presionArterial: cd.pa, alturaUterina: cd.au, fcf: cd.fcf,
+        movimientosFetales: 'Presentes', edema: 'No', sulfatoFerroso: 'Sí', diagnostico: 'Gestación de curso normal',
+      },
+    });
+  }
   await prisma.consulta.create({
     data: { pacienteId: pacientes[5].id, tipoConsultaId: tipoConId['Control prenatal'], tipoNombre: 'Control prenatal', especialidad: 'Obstetricia', prenatal: true, especialistaId: profObst?.id ?? null, estado: 'Pendiente', sedeId: 1, usuarioId: adminId },
-  });
-  await prisma.antecedenteObstetrico.create({
-    data: { pacienteId: pacientes[5].id, gestas: 1, partos: 0, abortos: 0, cesareas: 0, hijosVivos: 0, fum: new Date('2026-01-10'), fpp: new Date('2026-10-17'), tipoSangre: 'O+' },
   });
 
   console.log('Seed completado ✓');

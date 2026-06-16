@@ -1,66 +1,123 @@
 import {
-  Body, Controller, Get, Injectable, Module, NotFoundException, Param, ParseIntPipe, Post, Put, Query, Req, UseGuards,
+  Body, Controller, Get, Injectable, Module, NotFoundException, Param, ParseIntPipe, Post, Query, Req, UseGuards,
 } from '@nestjs/common';
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsInt, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthModule, JwtAuthGuard } from '../auth/auth.module';
 
-const PACIENTE_SEL = { id: true, nombres: true, apellidos: true, numDoc: true, sexo: true, fechaNacimiento: true };
-const ESP_SEL = { id: true, nombres: true, apellidos: true, especialidad: true };
+const toDate = (val?: string): Date | null =>
+  !val ? null : new Date(/^\d{4}-\d{2}-\d{2}$/.test(val) ? `${val}T12:00:00` : val);
+
+const PACIENTE_SEL = {
+  id: true, nombres: true, apellidos: true, numDoc: true, tipoDoc: true, sexo: true, fechaNacimiento: true,
+  telefono: true, facebook: true,
+  antPersonales: true, antFamiliares: true, antEpidemiologicos: true, antQuirurgicos: true, antOtros: true,
+  familiarNombre: true, familiarParentesco: true, familiarDni: true,
+};
+const ESP_SEL = { id: true, nombres: true, apellidos: true, especialidad: true, cmp: true, consultorio: true, turno: true, codigoSalud: true };
 
 const CONSULTA_INCLUDE = {
   paciente: { select: PACIENTE_SEL },
   especialista: { select: ESP_SEL },
   tipoConsulta: { select: { id: true, nombre: true } },
-  historia: true,
-  control: true,
+  historia: { include: { diagnosticos: true, tratamientos: true } },
+  control: { include: { gestacion: { include: { controles: { orderBy: { fecha: 'asc' as const } } } } } },
 };
 
+class DiagnosticoDto {
+  @IsString() cie10: string;
+  @IsOptional() @IsString() descripcion?: string;
+}
+class TratamientoDto {
+  @IsString() medicamento: string;
+  @IsOptional() @IsString() presentacion?: string;
+  @IsOptional() @IsString() cantidad?: string;
+  @IsOptional() @IsString() dosis?: string;
+  @IsOptional() @IsString() dias?: string;
+}
+
 class HistoriaDto {
-  @IsOptional() @IsString() motivo?: string;
-  @IsOptional() @IsString() presionArterial?: string;
-  @IsOptional() @IsString() pulso?: string;
-  @IsOptional() @IsString() temperatura?: string;
+  @IsOptional() @IsString() enfInicio?: string;
+  @IsOptional() @IsString() enfCurso?: string;
+  @IsOptional() @IsString() enfRelato?: string;
   @IsOptional() @IsString() peso?: string;
+  @IsOptional() @IsString() fc?: string;
+  @IsOptional() @IsString() fr?: string;
+  @IsOptional() @IsString() presionArterial?: string;
   @IsOptional() @IsString() talla?: string;
-  @IsOptional() @IsString() examenFisico?: string;
-  @IsOptional() @IsString() diagnosticoPresuntivo?: string;
-  @IsOptional() @IsString() diagnosticoDefinitivo?: string;
-  @IsOptional() @IsString() cie?: string;
-  @IsOptional() @IsString() plan?: string;
+  @IsOptional() @IsString() temperatura?: string;
+  @IsOptional() @IsString() examenGeneral?: string;
+  @IsOptional() @IsString() procedimientos?: string;
   @IsOptional() @IsString() observaciones?: string;
-  @IsOptional() @IsString() proximaCita?: string;
+  @IsOptional() @IsString() antPersonales?: string;
+  @IsOptional() @IsString() antFamiliares?: string;
+  @IsOptional() @IsString() antEpidemiologicos?: string;
+  @IsOptional() @IsString() antQuirurgicos?: string;
+  @IsOptional() @IsString() antOtros?: string;
+  @IsOptional() @IsString() familiarNombre?: string;
+  @IsOptional() @IsString() familiarParentesco?: string;
+  @IsOptional() @IsString() familiarDni?: string;
+  @IsOptional() @IsString() facebook?: string;
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => DiagnosticoDto) diagnosticos?: DiagnosticoDto[];
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => TratamientoDto) tratamientos?: TratamientoDto[];
   @IsOptional() @Type(() => Number) @IsInt() especialistaId?: number;
 }
 
-class ControlDto {
-  @IsOptional() @Type(() => Number) @IsInt() semanaGestacional?: number;
-  @IsOptional() @IsString() peso?: string;
-  @IsOptional() @IsString() presionArterial?: string;
-  @IsOptional() @IsString() fcf?: string;
-  @IsOptional() @IsString() alturaUterina?: string;
-  @IsOptional() @IsString() movimientosFetales?: string;
-  @IsOptional() @IsString() edema?: string;
-  @IsOptional() @IsString() examenFisico?: string;
-  @IsOptional() @IsString() diagnostico?: string;
-  @IsOptional() @IsString() plan?: string;
-  @IsOptional() @IsString() proximaCita?: string;
-  @IsOptional() @IsString() observaciones?: string;
-  @IsOptional() @Type(() => Number) @IsInt() especialistaId?: number;
-}
-
-class AntecedentesDto {
+class GestacionDto {
   @IsOptional() @Type(() => Number) @IsInt() gestas?: number;
   @IsOptional() @Type(() => Number) @IsInt() partos?: number;
   @IsOptional() @Type(() => Number) @IsInt() abortos?: number;
   @IsOptional() @Type(() => Number) @IsInt() cesareas?: number;
-  @IsOptional() @Type(() => Number) @IsInt() hijosVivos?: number;
+  @IsOptional() @Type(() => Number) @IsInt() vaginales?: number;
+  @IsOptional() @Type(() => Number) @IsInt() nacidosVivos?: number;
+  @IsOptional() @Type(() => Number) @IsInt() viven?: number;
+  @IsOptional() @Type(() => Number) @IsInt() nacidosMuertos?: number;
   @IsOptional() @IsString() fum?: string;
   @IsOptional() @IsString() fpp?: string;
+  @IsOptional() @IsString() ecoeg?: string;
   @IsOptional() @IsString() tipoSangre?: string;
+  @IsOptional() @IsString() factorRh?: string;
+  @IsOptional() @IsString() orina?: string;
+  @IsOptional() @IsString() urea?: string;
+  @IsOptional() @IsString() creatinina?: string;
+  @IsOptional() @IsString() bk?: string;
+  @IsOptional() @IsString() torch?: string;
   @IsOptional() @IsString() observaciones?: string;
+}
+
+class ControlDto {
+  @IsOptional() @ValidateNested() @Type(() => GestacionDto) gestacion?: GestacionDto;
+  @IsOptional() @Type(() => Number) @IsInt() semanaGestacional?: number;
+  @IsOptional() @IsString() peso?: string;
+  @IsOptional() @IsString() temperatura?: string;
+  @IsOptional() @IsString() presionArterial?: string;
+  @IsOptional() @IsString() pulso?: string;
+  @IsOptional() @IsString() alturaUterina?: string;
+  @IsOptional() @IsString() presentacion?: string;
+  @IsOptional() @IsString() fcf?: string;
+  @IsOptional() @IsString() movimientosFetales?: string;
+  @IsOptional() @IsString() edema?: string;
+  @IsOptional() @IsString() consejeria?: string;
+  @IsOptional() @IsString() sulfatoFerroso?: string;
+  @IsOptional() @IsString() perfilBiofisico?: string;
+  @IsOptional() @IsString() serologia?: string;
+  @IsOptional() @IsString() glucosa?: string;
+  @IsOptional() @IsString() vih?: string;
+  @IsOptional() @IsString() hemoglobina?: string;
+  @IsOptional() @IsString() examenFisico?: string;
+  @IsOptional() @IsString() diagnostico?: string;
+  @IsOptional() @IsString() diagDefinitivo?: string;
+  @IsOptional() @IsString() exAux?: string;
+  @IsOptional() @IsString() plan?: string;
+  @IsOptional() @IsString() proximaCita?: string;
+  @IsOptional() @IsString() observaciones?: string;
+  @IsOptional() @Type(() => Number) @IsInt() especialistaId?: number;
+}
+
+class CerrarDto {
+  @IsOptional() @IsString() motivo?: string;
 }
 
 @Injectable()
@@ -88,7 +145,10 @@ class ConsultasService {
   async historias(pacienteId?: number) {
     return this.prisma.historiaClinica.findMany({
       where: pacienteId ? { pacienteId } : undefined,
-      include: { consulta: { include: { paciente: { select: PACIENTE_SEL }, especialista: { select: ESP_SEL } } } },
+      include: {
+        diagnosticos: true,
+        consulta: { include: { paciente: { select: PACIENTE_SEL }, especialista: { select: ESP_SEL } } },
+      },
       orderBy: { fecha: 'desc' },
     });
   }
@@ -101,52 +161,86 @@ class ConsultasService {
     });
   }
 
+  cie10(search?: string) {
+    const where: Prisma.Cie10WhereInput = search
+      ? { OR: [{ codigo: { contains: search, mode: 'insensitive' } }, { descripcion: { contains: search, mode: 'insensitive' } }] }
+      : {};
+    return this.prisma.cie10.findMany({ where, take: 25, orderBy: { codigo: 'asc' } });
+  }
+
   async guardarHistoria(id: number, dto: HistoriaDto, user: { sub?: number }) {
     const c = await this.findOne(id);
     const especialistaId = dto.especialistaId ?? c.especialistaId ?? null;
-    const { especialistaId: _e, ...campos } = dto;
-    await this.prisma.historiaClinica.upsert({
-      where: { consultaId: id },
-      create: { consultaId: id, pacienteId: c.pacienteId, especialistaId, usuarioId: user.sub ?? null, ...campos },
-      update: { especialistaId, ...campos },
+    const {
+      diagnosticos = [], tratamientos = [], especialistaId: _e,
+      antPersonales, antFamiliares, antEpidemiologicos, antQuirurgicos, antOtros,
+      familiarNombre, familiarParentesco, familiarDni, facebook,
+      ...campos
+    } = dto;
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.paciente.update({
+        where: { id: c.pacienteId },
+        data: { antPersonales, antFamiliares, antEpidemiologicos, antQuirurgicos, antOtros, familiarNombre, familiarParentesco, familiarDni, facebook },
+      });
+      const h = await tx.historiaClinica.upsert({
+        where: { consultaId: id },
+        create: { consultaId: id, pacienteId: c.pacienteId, especialistaId, usuarioId: user.sub ?? null, ...campos },
+        update: { especialistaId, ...campos },
+      });
+      await tx.diagnostico.deleteMany({ where: { historiaId: h.id } });
+      if (diagnosticos.length) await tx.diagnostico.createMany({ data: diagnosticos.map((d) => ({ historiaId: h.id, cie10: d.cie10, descripcion: d.descripcion })) });
+      await tx.tratamiento.deleteMany({ where: { historiaId: h.id } });
+      if (tratamientos.length) await tx.tratamiento.createMany({ data: tratamientos.map((t) => ({ historiaId: h.id, medicamento: t.medicamento, presentacion: t.presentacion, cantidad: t.cantidad, dosis: t.dosis, dias: t.dias })) });
+      await tx.consulta.update({ where: { id }, data: { estado: 'Atendida', ...(especialistaId ? { especialistaId } : {}) } });
+      return tx.consulta.findUnique({ where: { id }, include: CONSULTA_INCLUDE });
     });
-    await this.prisma.consulta.update({
-      where: { id },
-      data: { estado: 'Atendida', ...(especialistaId ? { especialistaId } : {}) },
+  }
+
+  /** Carné de la gestación ABIERTA del paciente (antecedentes + controles). */
+  async getCarne(pacienteId: number) {
+    const gestacion = await this.prisma.gestacion.findFirst({
+      where: { pacienteId, estado: 'Abierta' },
+      orderBy: { id: 'desc' },
+      include: { controles: { orderBy: { fecha: 'asc' } } },
     });
-    return this.findOne(id);
+    return { gestacion, controles: gestacion?.controles ?? [] };
   }
 
   async guardarControl(id: number, dto: ControlDto, user: { sub?: number }) {
     const c = await this.findOne(id);
     const especialistaId = dto.especialistaId ?? c.especialistaId ?? null;
-    const { especialistaId: _e, ...campos } = dto;
-    await this.prisma.controlPrenatal.upsert({
-      where: { consultaId: id },
-      create: { consultaId: id, pacienteId: c.pacienteId, especialistaId, usuarioId: user.sub ?? null, ...campos },
-      update: { especialistaId, ...campos },
+    const gd = dto.gestacion ?? {};
+    const { gestacion: _g, especialistaId: _e, ...cf } = dto;
+
+    return this.prisma.$transaction(async (tx) => {
+      const gdata = {
+        gestas: gd.gestas, partos: gd.partos, abortos: gd.abortos, cesareas: gd.cesareas, vaginales: gd.vaginales,
+        nacidosVivos: gd.nacidosVivos, viven: gd.viven, nacidosMuertos: gd.nacidosMuertos,
+        fum: toDate(gd.fum), fpp: toDate(gd.fpp), ecoeg: gd.ecoeg, tipoSangre: gd.tipoSangre, factorRh: gd.factorRh,
+        orina: gd.orina, urea: gd.urea, creatinina: gd.creatinina, bk: gd.bk, torch: gd.torch, observaciones: gd.observaciones,
+      };
+      const abierta = await tx.gestacion.findFirst({ where: { pacienteId: c.pacienteId, estado: 'Abierta' }, orderBy: { id: 'desc' } });
+      const gest = abierta
+        ? await tx.gestacion.update({ where: { id: abierta.id }, data: gdata })
+        : await tx.gestacion.create({ data: { pacienteId: c.pacienteId, ...gdata } });
+
+      await tx.controlPrenatal.upsert({
+        where: { consultaId: id },
+        create: { consultaId: id, gestacionId: gest.id, pacienteId: c.pacienteId, especialistaId, usuarioId: user.sub ?? null, ...cf },
+        update: { gestacionId: gest.id, especialistaId, ...cf },
+      });
+      await tx.consulta.update({ where: { id }, data: { estado: 'Atendida', prenatal: true, ...(especialistaId ? { especialistaId } : {}) } });
+      return tx.consulta.findUnique({ where: { id }, include: CONSULTA_INCLUDE });
     });
-    await this.prisma.consulta.update({
-      where: { id },
-      data: { estado: 'Atendida', prenatal: true, ...(especialistaId ? { especialistaId } : {}) },
-    });
-    return this.findOne(id);
   }
 
-  getAntecedentes(pacienteId: number) {
-    return this.prisma.antecedenteObstetrico.findUnique({ where: { pacienteId } });
-  }
-
-  upsertAntecedentes(pacienteId: number, dto: AntecedentesDto) {
-    const data = {
-      ...dto,
-      fum: dto.fum ? new Date(dto.fum) : null,
-      fpp: dto.fpp ? new Date(dto.fpp) : null,
-    };
-    return this.prisma.antecedenteObstetrico.upsert({
-      where: { pacienteId },
-      create: { pacienteId, ...data },
-      update: data,
+  async cerrarGestacion(gestacionId: number, motivo?: string) {
+    const g = await this.prisma.gestacion.findUnique({ where: { id: gestacionId } });
+    if (!g) throw new NotFoundException(`Gestación #${gestacionId} no encontrada`);
+    return this.prisma.gestacion.update({
+      where: { id: gestacionId },
+      data: { estado: 'Cerrada', fechaCierre: new Date(), motivoCierre: motivo ?? null },
     });
   }
 }
@@ -172,13 +266,13 @@ class ConsultasController {
     return this.service.controles(pacienteId ? Number(pacienteId) : undefined);
   }
 
-  @Get('antecedentes/:pacienteId') getAntecedentes(@Param('pacienteId', ParseIntPipe) pacienteId: number) {
-    return this.service.getAntecedentes(pacienteId);
+  @Get('carne/:pacienteId') carne(@Param('pacienteId', ParseIntPipe) pacienteId: number) {
+    return this.service.getCarne(pacienteId);
   }
 
   @UseGuards(JwtAuthGuard)
-  @Put('antecedentes/:pacienteId') upsertAntecedentes(@Param('pacienteId', ParseIntPipe) pacienteId: number, @Body() dto: AntecedentesDto) {
-    return this.service.upsertAntecedentes(pacienteId, dto);
+  @Post('gestacion/:gestacionId/cerrar') cerrar(@Param('gestacionId', ParseIntPipe) gestacionId: number, @Body() dto: CerrarDto) {
+    return this.service.cerrarGestacion(gestacionId, dto.motivo);
   }
 
   @Get(':id') findOne(@Param('id', ParseIntPipe) id: number) {
@@ -196,5 +290,13 @@ class ConsultasController {
   }
 }
 
-@Module({ imports: [AuthModule], controllers: [ConsultasController], providers: [ConsultasService] })
+@Controller('cie10')
+class Cie10Controller {
+  constructor(private readonly service: ConsultasService) {}
+  @Get() buscar(@Query('search') search?: string) {
+    return this.service.cie10(search);
+  }
+}
+
+@Module({ imports: [AuthModule], controllers: [ConsultasController, Cie10Controller], providers: [ConsultasService] })
 export class ConsultasModule {}
