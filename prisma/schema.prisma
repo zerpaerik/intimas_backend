@@ -289,6 +289,7 @@ model TipoConsulta {
   precio       Decimal    @default(0) @db.Decimal(10, 2)
   especialidad String?
   prenatal     Boolean    @default(false)
+  pediatrico   Boolean    @default(false)
   consultas    Consulta[]
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
@@ -306,6 +307,7 @@ model Consulta {
   tipoNombre     String
   especialidad   String?
   prenatal       Boolean          @default(false)
+  pediatrico     Boolean          @default(false)
   especialistaId Int?
   especialista   Profesional?     @relation(fields: [especialistaId], references: [id])
   estado         String           @default("Pendiente") // Pendiente | Atendida
@@ -313,6 +315,7 @@ model Consulta {
   usuarioId      Int?
   historia       HistoriaClinica?
   control        ControlPrenatal?
+  pediatrica     HistoriaPediatrica?
   createdAt      DateTime         @default(now())
 
   @@index([pacienteId])
@@ -344,6 +347,8 @@ model HistoriaClinica {
   observaciones   String?
   diagnosticos    Diagnostico[]
   tratamientos    Tratamiento[]
+  cerrada         Boolean  @default(false)
+  fechaCierre     DateTime?
   usuarioId       Int?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -373,6 +378,73 @@ model Cie10 {
   descripcion String
 
   @@index([descripcion])
+}
+
+// Historia Clínica Pediátrica (formato estandarizado pediátrico)
+model HistoriaPediatrica {
+  id              Int      @id @default(autoincrement())
+  consultaId      Int      @unique
+  consulta        Consulta @relation(fields: [consultaId], references: [id], onDelete: Cascade)
+  pacienteId      Int
+  especialistaId  Int?
+  fecha           DateTime @default(now())
+  // 1 · Identificación pediátrica
+  cama            String?
+  informante      String?
+  lugarNacimiento String?
+  procedencia     String?
+  seguro          String?
+  madreNombre     String?
+  padreNombre     String?
+  servicioIngreso String?
+  referido        String?
+  // 2 · Enfermedad actual
+  motivoConsulta      String?
+  tiempoEnfermedad    String?
+  formaInicio         String?
+  relato              String?
+  datosNegativos      String?
+  funcionesBiologicas String?
+  revisionSistemas    String?
+  // 3 · Antecedentes personales
+  antPerinatales   String?
+  pesoNacer        String?
+  tallaNacer       String?
+  apgar            String?
+  antNutricionales String?
+  desarrollo       String?
+  escolaridad      String?
+  inmunizaciones   String?
+  antPatologicos   String?
+  // 4-5 · Familiares y socioeconómicos
+  antFamiliares      String?
+  antSocioeconomicos String?
+  // 7 · Examen físico · somatometría
+  peso               String?
+  talla              String?
+  pc                 String?
+  perimetroAbdominal String?
+  imc                String?
+  fc                 String?
+  fr                 String?
+  ta                 String?
+  temperatura        String?
+  percentiles        String?
+  inspeccionGeneral  String?
+  // 10 · Hipótesis diagnóstica
+  dxPatologia   String?
+  dxCrecimiento String?
+  // 11-12 · Planes
+  planEstudio String?
+  planManejo  String?
+  // Cierre
+  cerrada     Boolean   @default(false)
+  fechaCierre DateTime?
+  usuarioId   Int?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([pacienteId])
 }
 
 model ControlPrenatal {
@@ -408,6 +480,8 @@ model ControlPrenatal {
   plan               String?
   proximaCita        String?
   observaciones      String?
+  cerrada            Boolean    @default(false)
+  fechaCierre        DateTime?
   usuarioId          Int?
   createdAt          DateTime   @default(now())
   updatedAt          DateTime   @updatedAt

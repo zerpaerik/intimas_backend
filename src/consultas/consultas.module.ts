@@ -1,8 +1,8 @@
 import {
-  Body, Controller, Get, Injectable, Module, NotFoundException, Param, ParseIntPipe, Post, Query, Req, UseGuards,
+  Body, Controller, ForbiddenException, Get, Injectable, Module, NotFoundException, Param, ParseIntPipe, Post, Query, Req, UseGuards,
 } from '@nestjs/common';
 import { Type } from 'class-transformer';
-import { IsArray, IsInt, IsOptional, IsString, ValidateNested } from 'class-validator';
+import { IsArray, IsBoolean, IsInt, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthModule, JwtAuthGuard } from '../auth/auth.module';
@@ -24,6 +24,7 @@ const CONSULTA_INCLUDE = {
   tipoConsulta: { select: { id: true, nombre: true } },
   historia: { include: { diagnosticos: true, tratamientos: true } },
   control: { include: { gestacion: { include: { controles: { orderBy: { fecha: 'asc' as const } } } } } },
+  pediatrica: true,
 };
 
 class DiagnosticoDto {
@@ -62,6 +63,7 @@ class HistoriaDto {
   @IsOptional() @IsString() facebook?: string;
   @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => DiagnosticoDto) diagnosticos?: DiagnosticoDto[];
   @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => TratamientoDto) tratamientos?: TratamientoDto[];
+  @IsOptional() @IsBoolean() cerrar?: boolean;
   @IsOptional() @Type(() => Number) @IsInt() especialistaId?: number;
 }
 
@@ -113,6 +115,54 @@ class ControlDto {
   @IsOptional() @IsString() plan?: string;
   @IsOptional() @IsString() proximaCita?: string;
   @IsOptional() @IsString() observaciones?: string;
+  @IsOptional() @IsBoolean() cerrar?: boolean;
+  @IsOptional() @Type(() => Number) @IsInt() especialistaId?: number;
+}
+
+class PediatriaDto {
+  @IsOptional() @IsString() cama?: string;
+  @IsOptional() @IsString() informante?: string;
+  @IsOptional() @IsString() lugarNacimiento?: string;
+  @IsOptional() @IsString() procedencia?: string;
+  @IsOptional() @IsString() seguro?: string;
+  @IsOptional() @IsString() madreNombre?: string;
+  @IsOptional() @IsString() padreNombre?: string;
+  @IsOptional() @IsString() servicioIngreso?: string;
+  @IsOptional() @IsString() referido?: string;
+  @IsOptional() @IsString() motivoConsulta?: string;
+  @IsOptional() @IsString() tiempoEnfermedad?: string;
+  @IsOptional() @IsString() formaInicio?: string;
+  @IsOptional() @IsString() relato?: string;
+  @IsOptional() @IsString() datosNegativos?: string;
+  @IsOptional() @IsString() funcionesBiologicas?: string;
+  @IsOptional() @IsString() revisionSistemas?: string;
+  @IsOptional() @IsString() antPerinatales?: string;
+  @IsOptional() @IsString() pesoNacer?: string;
+  @IsOptional() @IsString() tallaNacer?: string;
+  @IsOptional() @IsString() apgar?: string;
+  @IsOptional() @IsString() antNutricionales?: string;
+  @IsOptional() @IsString() desarrollo?: string;
+  @IsOptional() @IsString() escolaridad?: string;
+  @IsOptional() @IsString() inmunizaciones?: string;
+  @IsOptional() @IsString() antPatologicos?: string;
+  @IsOptional() @IsString() antFamiliares?: string;
+  @IsOptional() @IsString() antSocioeconomicos?: string;
+  @IsOptional() @IsString() peso?: string;
+  @IsOptional() @IsString() talla?: string;
+  @IsOptional() @IsString() pc?: string;
+  @IsOptional() @IsString() perimetroAbdominal?: string;
+  @IsOptional() @IsString() imc?: string;
+  @IsOptional() @IsString() fc?: string;
+  @IsOptional() @IsString() fr?: string;
+  @IsOptional() @IsString() ta?: string;
+  @IsOptional() @IsString() temperatura?: string;
+  @IsOptional() @IsString() percentiles?: string;
+  @IsOptional() @IsString() inspeccionGeneral?: string;
+  @IsOptional() @IsString() dxPatologia?: string;
+  @IsOptional() @IsString() dxCrecimiento?: string;
+  @IsOptional() @IsString() planEstudio?: string;
+  @IsOptional() @IsString() planManejo?: string;
+  @IsOptional() @IsBoolean() cerrar?: boolean;
   @IsOptional() @Type(() => Number) @IsInt() especialistaId?: number;
 }
 
@@ -170,13 +220,15 @@ class ConsultasService {
 
   async guardarHistoria(id: number, dto: HistoriaDto, user: { sub?: number }) {
     const c = await this.findOne(id);
+    if (c.historia?.cerrada) throw new ForbiddenException('La historia clínica está cerrada y no puede modificarse.');
     const especialistaId = dto.especialistaId ?? c.especialistaId ?? null;
     const {
-      diagnosticos = [], tratamientos = [], especialistaId: _e,
+      diagnosticos = [], tratamientos = [], especialistaId: _e, cerrar,
       antPersonales, antFamiliares, antEpidemiologicos, antQuirurgicos, antOtros,
       familiarNombre, familiarParentesco, familiarDni, facebook,
       ...campos
     } = dto;
+    const cierre = cerrar ? { cerrada: true, fechaCierre: new Date() } : {};
 
     return this.prisma.$transaction(async (tx) => {
       await tx.paciente.update({
@@ -185,8 +237,8 @@ class ConsultasService {
       });
       const h = await tx.historiaClinica.upsert({
         where: { consultaId: id },
-        create: { consultaId: id, pacienteId: c.pacienteId, especialistaId, usuarioId: user.sub ?? null, ...campos },
-        update: { especialistaId, ...campos },
+        create: { consultaId: id, pacienteId: c.pacienteId, especialistaId, usuarioId: user.sub ?? null, ...campos, ...cierre },
+        update: { especialistaId, ...campos, ...cierre },
       });
       await tx.diagnostico.deleteMany({ where: { historiaId: h.id } });
       if (diagnosticos.length) await tx.diagnostico.createMany({ data: diagnosticos.map((d) => ({ historiaId: h.id, cie10: d.cie10, descripcion: d.descripcion })) });
@@ -209,9 +261,11 @@ class ConsultasService {
 
   async guardarControl(id: number, dto: ControlDto, user: { sub?: number }) {
     const c = await this.findOne(id);
+    if (c.control?.cerrada) throw new ForbiddenException('El control prenatal está cerrado y no puede modificarse.');
     const especialistaId = dto.especialistaId ?? c.especialistaId ?? null;
     const gd = dto.gestacion ?? {};
-    const { gestacion: _g, especialistaId: _e, ...cf } = dto;
+    const { gestacion: _g, especialistaId: _e, cerrar, ...cf } = dto;
+    const cierre = cerrar ? { cerrada: true, fechaCierre: new Date() } : {};
 
     return this.prisma.$transaction(async (tx) => {
       const gdata = {
@@ -227,8 +281,8 @@ class ConsultasService {
 
       await tx.controlPrenatal.upsert({
         where: { consultaId: id },
-        create: { consultaId: id, gestacionId: gest.id, pacienteId: c.pacienteId, especialistaId, usuarioId: user.sub ?? null, ...cf },
-        update: { gestacionId: gest.id, especialistaId, ...cf },
+        create: { consultaId: id, gestacionId: gest.id, pacienteId: c.pacienteId, especialistaId, usuarioId: user.sub ?? null, ...cf, ...cierre },
+        update: { gestacionId: gest.id, especialistaId, ...cf, ...cierre },
       });
       await tx.consulta.update({ where: { id }, data: { estado: 'Atendida', prenatal: true, ...(especialistaId ? { especialistaId } : {}) } });
       return tx.consulta.findUnique({ where: { id }, include: CONSULTA_INCLUDE });
@@ -242,6 +296,41 @@ class ConsultasService {
       where: { id: gestacionId },
       data: { estado: 'Cerrada', fechaCierre: new Date(), motivoCierre: motivo ?? null },
     });
+  }
+
+  async guardarPediatrica(id: number, dto: PediatriaDto, user: { sub?: number }) {
+    const c = await this.findOne(id);
+    if (c.pediatrica?.cerrada) throw new ForbiddenException('La historia pediátrica está cerrada y no puede modificarse.');
+    const especialistaId = dto.especialistaId ?? c.especialistaId ?? null;
+    const { especialistaId: _e, cerrar, ...campos } = dto;
+    const cierre = cerrar ? { cerrada: true, fechaCierre: new Date() } : {};
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.historiaPediatrica.upsert({
+        where: { consultaId: id },
+        create: { consultaId: id, pacienteId: c.pacienteId, especialistaId, usuarioId: user.sub ?? null, ...campos, ...cierre },
+        update: { especialistaId, ...campos, ...cierre },
+      });
+      await tx.consulta.update({ where: { id }, data: { estado: 'Atendida', pediatrico: true, ...(especialistaId ? { especialistaId } : {}) } });
+      return tx.consulta.findUnique({ where: { id }, include: CONSULTA_INCLUDE });
+    });
+  }
+
+  async pediatricas(pacienteId?: number) {
+    return this.prisma.historiaPediatrica.findMany({
+      where: pacienteId ? { pacienteId } : undefined,
+      include: { consulta: { include: { paciente: { select: PACIENTE_SEL }, especialista: { select: ESP_SEL } } } },
+      orderBy: { fecha: 'desc' },
+    });
+  }
+
+  /** Reabre (desbloquea) el registro cerrado de la consulta. Solo para administradores. */
+  async reabrir(id: number) {
+    const c = await this.findOne(id);
+    if (c.historia) return this.prisma.historiaClinica.update({ where: { consultaId: id }, data: { cerrada: false, fechaCierre: null } });
+    if (c.control) return this.prisma.controlPrenatal.update({ where: { consultaId: id }, data: { cerrada: false, fechaCierre: null } });
+    if (c.pediatrica) return this.prisma.historiaPediatrica.update({ where: { consultaId: id }, data: { cerrada: false, fechaCierre: null } });
+    throw new NotFoundException('No hay registro que reabrir en esta consulta.');
   }
 }
 
@@ -266,6 +355,10 @@ class ConsultasController {
     return this.service.controles(pacienteId ? Number(pacienteId) : undefined);
   }
 
+  @Get('pediatricas') pediatricas(@Query('pacienteId') pacienteId?: string) {
+    return this.service.pediatricas(pacienteId ? Number(pacienteId) : undefined);
+  }
+
   @Get('carne/:pacienteId') carne(@Param('pacienteId', ParseIntPipe) pacienteId: number) {
     return this.service.getCarne(pacienteId);
   }
@@ -287,6 +380,16 @@ class ConsultasController {
   @UseGuards(JwtAuthGuard)
   @Post(':id/control') guardarControl(@Param('id', ParseIntPipe) id: number, @Body() dto: ControlDto, @Req() req: { user: { sub?: number } }) {
     return this.service.guardarControl(id, dto, req.user);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post(':id/pediatria') guardarPediatrica(@Param('id', ParseIntPipe) id: number, @Body() dto: PediatriaDto, @Req() req: { user: { sub?: number } }) {
+    return this.service.guardarPediatrica(id, dto, req.user);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post(':id/reabrir') reabrir(@Param('id', ParseIntPipe) id: number) {
+    return this.service.reabrir(id);
   }
 }
 

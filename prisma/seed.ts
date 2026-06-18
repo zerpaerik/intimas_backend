@@ -9,6 +9,7 @@ async function main() {
   await prisma.tratamiento.deleteMany();
   await prisma.historiaClinica.deleteMany();
   await prisma.controlPrenatal.deleteMany();
+  await prisma.historiaPediatrica.deleteMany();
   await prisma.consulta.deleteMany();
   await prisma.gestacion.deleteMany();
   await prisma.tipoConsulta.deleteMany();
@@ -116,6 +117,7 @@ async function main() {
     { nombre: 'Consulta psicológica', precio: 120, especialidad: 'Psicología', prenatal: false },
     { nombre: 'Medicina general', precio: 40, especialidad: 'Medicina General', prenatal: false },
     { nombre: 'Consulta nutricional', precio: 70, especialidad: 'Nutrición', prenatal: false },
+    { nombre: 'Consulta pediátrica', precio: 55, especialidad: 'Pediatría', prenatal: false, pediatrico: true },
   ];
   const tipoConId: Record<string, number> = {};
   for (const t of tipoConData) tipoConId[t.nombre] = (await prisma.tipoConsulta.create({ data: t })).id;
@@ -221,6 +223,7 @@ async function main() {
     { nombres: 'Jorge Luis', apellidos: 'Mendoza Ríos', tipoDoc: 'DNI', numDoc: '41209873', fechaNacimiento: '1990-09-14', sexo: 'Masculino', telefono: '955302118', email: 'jmendoza@gmail.com', ocupacion: 'Chofer', estadoCivil: 'Casado(a)', direccion: 'Jr. Tacna 320' },
     { nombres: 'Ana Paula', apellidos: 'Salazar Núñez', tipoDoc: 'DNI', numDoc: '76554321', fechaNacimiento: '2001-03-08', sexo: 'Femenino', telefono: '913882044', email: 'anapaula.s@gmail.com', ocupacion: 'Diseñadora', estadoCivil: 'Soltero(a)', direccion: 'Urb. Santa Rosa Mz. C Lt. 8' },
     { nombres: 'Carmen Rosa', apellidos: 'Díaz Paredes', tipoDoc: 'DNI', numDoc: '70019988', fechaNacimiento: '1995-06-11', sexo: 'Femenino', telefono: '938201577', email: 'carmen.diaz@gmail.com', ocupacion: 'Enfermera', estadoCivil: 'Soltero(a)', direccion: 'Calle Bolognesi 540' },
+    { nombres: 'Mateo', apellidos: 'Rojas Campos', tipoDoc: 'DNI', numDoc: '88002211', fechaNacimiento: '2022-09-15', sexo: 'Masculino', telefono: '987111222', email: '', ocupacion: 'Lactante mayor', estadoCivil: 'Soltero(a)', direccion: 'Av. Primavera 145' },
   ];
   const ALERG = ['Ninguna conocida', 'Penicilina', 'AINEs', 'Sulfas', 'Ninguna conocida', 'Mariscos', 'Polen'];
   const PATOL = ['Sin antecedentes relevantes', 'Hipertensión controlada', 'Anemia leve', 'Migraña', 'Diabetes tipo 2', 'Sin antecedentes relevantes', 'Hipotiroidismo'];
@@ -353,6 +356,41 @@ async function main() {
   }
   await prisma.consulta.create({
     data: { pacienteId: pacientes[5].id, tipoConsultaId: tipoConId['Control prenatal'], tipoNombre: 'Control prenatal', especialidad: 'Obstetricia', prenatal: true, especialistaId: profObst?.id ?? null, estado: 'Pendiente', sedeId: 1, usuarioId: adminId },
+  });
+
+  // Pediatría: 1 atendida (con historia pediátrica completa) + 1 pendiente — paciente Mateo (niño)
+  const profPed = await prisma.profesional.findFirst({ where: { especialidad: 'Pediatría' } });
+  const cPedAtendida = await prisma.consulta.create({
+    data: { pacienteId: pacientes[7].id, tipoConsultaId: tipoConId['Consulta pediátrica'], tipoNombre: 'Consulta pediátrica', especialidad: 'Pediatría', pediatrico: true, especialistaId: profPed?.id ?? null, estado: 'Atendida', sedeId: 1, usuarioId: adminId, fecha: new Date('2026-06-10') },
+  });
+  await prisma.historiaPediatrica.create({
+    data: {
+      consultaId: cPedAtendida.id, pacienteId: pacientes[7].id, especialistaId: profPed?.id ?? null,
+      informante: 'Madre', lugarNacimiento: 'Lima', procedencia: 'Lima', seguro: 'SIS',
+      madreNombre: 'Carmen Campos Díaz', padreNombre: 'Luis Rojas Vega', servicioIngreso: 'Consultorio externo',
+      motivoConsulta: 'Tos y fiebre', tiempoEnfermedad: '3 días', formaInicio: 'Brusco',
+      relato: 'Madre refiere que hace 3 días el niño presenta tos seca, fiebre cuantificada en 38.5 °C y disminución del apetito. No ha presentado dificultad respiratoria ni vómitos.',
+      funcionesBiologicas: 'Apetito disminuido, sueño conservado, orina y deposiciones normales.',
+      revisionSistemas: 'Respiratorio: tos seca. Resto de sistemas sin alteraciones.',
+      antPerinatales: 'Embarazo controlado (6 controles). Parto vaginal a término en clínica. Apgar 8/9. Lactancia materna desde la primera hora de vida.',
+      pesoNacer: '3.2 kg', tallaNacer: '49 cm', apgar: '8 / 9',
+      antNutricionales: 'Lactancia materna exclusiva hasta los 6 meses. Alimentación complementaria oportuna y adecuada. Actualmente integrado a la dieta familiar.',
+      desarrollo: 'Sostén cefálico 3 m, sedestación 6 m, marcha 12 m, primeras palabras 12 m. Desarrollo psicomotor acorde a la edad.',
+      escolaridad: 'Asiste a cuna-jardín.',
+      inmunizaciones: 'Esquema completo para la edad según carné (BCG, HvB, pentavalente, polio, rotavirus, neumococo, influenza, SPR).',
+      antPatologicos: 'Sin hospitalizaciones ni intervenciones quirúrgicas previas. Sin alergias conocidas.',
+      antFamiliares: 'Madre con rinitis alérgica. Sin otros antecedentes de importancia.',
+      antSocioeconomicos: 'Vive con ambos padres en vivienda propia con servicios básicos completos. Adecuada dinámica familiar.',
+      peso: '15', talla: '0.98', pc: '49', imc: '15.6', fc: '110', fr: '28', ta: '90/60', temperatura: '38.2', percentiles: 'Peso P50 · Talla P50',
+      inspeccionGeneral: 'Niño activo, reactivo, hidratado, sin signos de dificultad respiratoria. Buen estado general y nutricional.',
+      dxPatologia: '1. Faringitis aguda de probable etiología viral\n2. Síndrome febril agudo',
+      dxCrecimiento: '1. Crecimiento adecuado para la edad\n2. Estado nutricional normal',
+      planEstudio: 'Manejo clínico. No requiere exámenes auxiliares por el momento.',
+      planManejo: 'Paracetamol 15 mg/kg/dosis condicional a fiebre. Hidratación abundante. Reposo relativo. Control en 48 horas o antes si presenta signos de alarma.',
+    },
+  });
+  await prisma.consulta.create({
+    data: { pacienteId: pacientes[7].id, tipoConsultaId: tipoConId['Consulta pediátrica'], tipoNombre: 'Consulta pediátrica', especialidad: 'Pediatría', pediatrico: true, especialistaId: profPed?.id ?? null, estado: 'Pendiente', sedeId: 1, usuarioId: adminId },
   });
 
   console.log('Seed completado ✓');

@@ -25,6 +25,7 @@ class ConsultaInputDto {
   @IsString() tipoNombre: string;
   @IsOptional() @IsString() especialidad?: string;
   @IsOptional() @IsBoolean() prenatal?: boolean;
+  @IsOptional() @IsBoolean() pediatrico?: boolean;
   @IsOptional() @Type(() => Number) @IsInt() especialistaId?: number;
 }
 class CreateAtencionDto {
@@ -146,6 +147,7 @@ class AtencionesService {
             tipoNombre: co.tipoNombre,
             especialidad: co.especialidad ?? null,
             prenatal: co.prenatal ?? false,
+            pediatrico: co.pediatrico ?? false,
             especialistaId: co.especialistaId ?? null,
             estado: 'Pendiente',
             sedeId: at.sedeId,

@@ -21,6 +21,13 @@ class CreateTipoConsultaDto {
   })
   @IsBoolean()
   prenatal?: boolean;
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (value === undefined || value === null || value === '') return undefined;
+    return value === true || value === 1 || ['true', 'sí', 'si', '1', 'yes'].includes(String(value).toLowerCase());
+  })
+  @IsBoolean()
+  pediatrico?: boolean;
 }
 class UpdateTipoConsultaDto extends PartialType(CreateTipoConsultaDto) {}
 
