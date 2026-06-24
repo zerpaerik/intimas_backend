@@ -290,7 +290,8 @@ model TipoConsulta {
   especialidad String?
   prenatal     Boolean    @default(false)
   pediatrico   Boolean    @default(false)
-  formato      String     @default("general") // general | prenatal | pediatrico
+  gineco       Boolean    @default(false)
+  formato      String     @default("general") // general | ginecologica | prenatal | pediatrico
   consultas    Consulta[]
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
@@ -309,6 +310,7 @@ model Consulta {
   especialidad   String?
   prenatal       Boolean          @default(false)
   pediatrico     Boolean          @default(false)
+  gineco         Boolean          @default(false)
   especialistaId Int?
   especialista   Profesional?     @relation(fields: [especialistaId], references: [id])
   estado         String           @default("Pendiente") // Pendiente | Atendida

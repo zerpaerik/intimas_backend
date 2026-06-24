@@ -112,7 +112,7 @@ async function main() {
 
   // Tipos de consulta
   const tipoConData = [
-    { nombre: 'Consulta ginecológica', precio: 60, especialidad: 'Ginecología', prenatal: false, formato: 'general' },
+    { nombre: 'Consulta ginecológica', precio: 60, especialidad: 'Ginecología', prenatal: false, gineco: true, formato: 'ginecologica' },
     { nombre: 'Control prenatal', precio: 50, especialidad: 'Obstetricia', prenatal: true, formato: 'prenatal' },
     { nombre: 'Consulta psicológica', precio: 120, especialidad: 'Psicología', prenatal: false, formato: 'general' },
     { nombre: 'Medicina general', precio: 40, especialidad: 'Medicina General', prenatal: false, formato: 'general' },
@@ -314,10 +314,10 @@ async function main() {
   const profGine = await prisma.profesional.findFirst({ where: { especialidad: 'Ginecología' } });
   const profObst = await prisma.profesional.findFirst({ where: { especialidad: 'Obstetricia' } });
   await prisma.consulta.create({
-    data: { pacienteId: pacientes[2].id, tipoConsultaId: tipoConId['Consulta ginecológica'], tipoNombre: 'Consulta ginecológica', especialidad: 'Ginecología', especialistaId: profGine?.id ?? null, estado: 'Pendiente', sedeId: 1, usuarioId: adminId },
+    data: { pacienteId: pacientes[2].id, tipoConsultaId: tipoConId['Consulta ginecológica'], tipoNombre: 'Consulta ginecológica', especialidad: 'Ginecología', gineco: true, especialistaId: profGine?.id ?? null, estado: 'Pendiente', sedeId: 1, usuarioId: adminId },
   });
   const cAtendida = await prisma.consulta.create({
-    data: { pacienteId: pacientes[0].id, tipoConsultaId: tipoConId['Consulta ginecológica'], tipoNombre: 'Consulta ginecológica', especialidad: 'Ginecología', especialistaId: profGine?.id ?? null, estado: 'Atendida', sedeId: 1, usuarioId: adminId },
+    data: { pacienteId: pacientes[0].id, tipoConsultaId: tipoConId['Consulta ginecológica'], tipoNombre: 'Consulta ginecológica', especialidad: 'Ginecología', gineco: true, especialistaId: profGine?.id ?? null, estado: 'Atendida', sedeId: 1, usuarioId: adminId },
   });
   await prisma.historiaClinica.create({
     data: {

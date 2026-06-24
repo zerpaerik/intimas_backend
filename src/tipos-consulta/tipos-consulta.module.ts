@@ -14,7 +14,7 @@ class CreateTipoConsultaDto {
   @IsString() nombre: string;
   @IsOptional() @Type(() => Number) @IsNumber() precio?: number;
   @IsOptional() @IsString() especialidad?: string;
-  @IsOptional() @IsIn(['general', 'prenatal', 'pediatrico']) formato?: string;
+  @IsOptional() @IsIn(['general', 'ginecologica', 'prenatal', 'pediatrico']) formato?: string;
 }
 class UpdateTipoConsultaDto extends PartialType(CreateTipoConsultaDto) {}
 
@@ -26,7 +26,11 @@ class TiposConsultaService extends BaseCrudService {
   /** Mantiene los flags prenatal/pediatrico en sincronía con el formato elegido. */
   private flags(dto: { formato?: string }) {
     if (dto.formato === undefined) return {};
-    return { prenatal: dto.formato === 'prenatal', pediatrico: dto.formato === 'pediatrico' };
+    return {
+      prenatal: dto.formato === 'prenatal',
+      pediatrico: dto.formato === 'pediatrico',
+      gineco: dto.formato === 'ginecologica',
+    };
   }
   create(dto: CreateTipoConsultaDto) {
     return super.create({ ...dto, precio: dto.precio != null ? D(dto.precio) : undefined, ...this.flags(dto) });
