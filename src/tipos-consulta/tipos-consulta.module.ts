@@ -2,8 +2,8 @@ import {
   Body, Controller, Delete, Get, Injectable, Module, Param, ParseIntPipe, Patch, Post, Query,
 } from '@nestjs/common';
 import { PartialType } from '@nestjs/mapped-types';
-import { Transform, Type } from 'class-transformer';
-import { IsBoolean, IsNumber, IsOptional, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsIn, IsNumber, IsOptional, IsString } from 'class-validator';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { BaseCrudService } from '../common/base-crud.service';
@@ -14,20 +14,7 @@ class CreateTipoConsultaDto {
   @IsString() nombre: string;
   @IsOptional() @Type(() => Number) @IsNumber() precio?: number;
   @IsOptional() @IsString() especialidad?: string;
-  @IsOptional()
-  @Transform(({ value }) => {
-    if (value === undefined || value === null || value === '') return undefined;
-    return value === true || value === 1 || ['true', 'sí', 'si', '1', 'yes'].includes(String(value).toLowerCase());
-  })
-  @IsBoolean()
-  prenatal?: boolean;
-  @IsOptional()
-  @Transform(({ value }) => {
-    if (value === undefined || value === null || value === '') return undefined;
-    return value === true || value === 1 || ['true', 'sí', 'si', '1', 'yes'].includes(String(value).toLowerCase());
-  })
-  @IsBoolean()
-  pediatrico?: boolean;
+  @IsOptional() @IsIn(['general', 'prenatal', 'pediatrico']) formato?: string;
 }
 class UpdateTipoConsultaDto extends PartialType(CreateTipoConsultaDto) {}
 
@@ -36,11 +23,16 @@ class TiposConsultaService extends BaseCrudService {
   constructor(private readonly prisma: PrismaService) {
     super(prisma.tipoConsulta, ['nombre', 'especialidad']);
   }
+  /** Mantiene los flags prenatal/pediatrico en sincronía con el formato elegido. */
+  private flags(dto: { formato?: string }) {
+    if (dto.formato === undefined) return {};
+    return { prenatal: dto.formato === 'prenatal', pediatrico: dto.formato === 'pediatrico' };
+  }
   create(dto: CreateTipoConsultaDto) {
-    return super.create({ ...dto, precio: dto.precio != null ? D(dto.precio) : undefined });
+    return super.create({ ...dto, precio: dto.precio != null ? D(dto.precio) : undefined, ...this.flags(dto) });
   }
   update(id: number, dto: UpdateTipoConsultaDto) {
-    return super.update(id, { ...dto, ...(dto.precio != null ? { precio: D(dto.precio) } : {}) });
+    return super.update(id, { ...dto, ...(dto.precio != null ? { precio: D(dto.precio) } : {}), ...this.flags(dto) });
   }
 }
 

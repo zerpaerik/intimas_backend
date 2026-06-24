@@ -290,6 +290,7 @@ model TipoConsulta {
   especialidad String?
   prenatal     Boolean    @default(false)
   pediatrico   Boolean    @default(false)
+  formato      String     @default("general") // general | prenatal | pediatrico
   consultas    Consulta[]
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt

@@ -112,12 +112,12 @@ async function main() {
 
   // Tipos de consulta
   const tipoConData = [
-    { nombre: 'Consulta ginecológica', precio: 60, especialidad: 'Ginecología', prenatal: false },
-    { nombre: 'Control prenatal', precio: 50, especialidad: 'Obstetricia', prenatal: true },
-    { nombre: 'Consulta psicológica', precio: 120, especialidad: 'Psicología', prenatal: false },
-    { nombre: 'Medicina general', precio: 40, especialidad: 'Medicina General', prenatal: false },
-    { nombre: 'Consulta nutricional', precio: 70, especialidad: 'Nutrición', prenatal: false },
-    { nombre: 'Consulta pediátrica', precio: 55, especialidad: 'Pediatría', prenatal: false, pediatrico: true },
+    { nombre: 'Consulta ginecológica', precio: 60, especialidad: 'Ginecología', prenatal: false, formato: 'general' },
+    { nombre: 'Control prenatal', precio: 50, especialidad: 'Obstetricia', prenatal: true, formato: 'prenatal' },
+    { nombre: 'Consulta psicológica', precio: 120, especialidad: 'Psicología', prenatal: false, formato: 'general' },
+    { nombre: 'Medicina general', precio: 40, especialidad: 'Medicina General', prenatal: false, formato: 'general' },
+    { nombre: 'Consulta nutricional', precio: 70, especialidad: 'Nutrición', prenatal: false, formato: 'general' },
+    { nombre: 'Consulta pediátrica', precio: 55, especialidad: 'Pediatría', prenatal: false, pediatrico: true, formato: 'pediatrico' },
   ];
   const tipoConId: Record<string, number> = {};
   for (const t of tipoConData) tipoConId[t.nombre] = (await prisma.tipoConsulta.create({ data: t })).id;
