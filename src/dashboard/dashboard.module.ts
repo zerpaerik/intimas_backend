@@ -1,4 +1,4 @@
-import { Controller, Get, Injectable, Module } from '@nestjs/common';
+import { Controller, Get, Injectable, Module, Query } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 const PAGO_COLORS: Record<string, string> = {
@@ -21,14 +21,15 @@ function sameDay(a: Date, b: Date) {
 class DashboardService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async summary() {
+  async summary(sedeId?: number) {
+    const sedeF = sedeId ? { sedeId } : {};
     const [ats, pagos, gastos, pacientes, profesionales, servicios, analisis, paquetes] = await Promise.all([
       this.prisma.atencion.findMany({
-        where: { anulada: false },
+        where: { anulada: false, ...sedeF },
         include: { items: true, paciente: { select: { nombres: true, apellidos: true } } },
       }),
-      this.prisma.pago.findMany({ where: { anulado: false }, select: { monto: true, metodo: true, fecha: true } }),
-      this.prisma.gasto.findMany({ where: { anulada: false }, select: { monto: true, fecha: true } }),
+      this.prisma.pago.findMany({ where: { anulado: false, ...sedeF }, select: { monto: true, metodo: true, fecha: true } }),
+      this.prisma.gasto.findMany({ where: { anulada: false, ...sedeF }, select: { monto: true, fecha: true } }),
       this.prisma.paciente.count(),
       this.prisma.profesional.count(),
       this.prisma.servicio.count(),
@@ -119,8 +120,8 @@ class DashboardService {
 class DashboardController {
   constructor(private readonly service: DashboardService) {}
   @Get()
-  get() {
-    return this.service.summary();
+  get(@Query('sedeId') sedeId?: string) {
+    return this.service.summary(sedeId ? Number(sedeId) : undefined);
   }
 }
 

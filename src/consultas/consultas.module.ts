@@ -174,10 +174,11 @@ class CerrarDto {
 class ConsultasService {
   constructor(private readonly prisma: PrismaService) {}
 
-  findAll(params: { estado?: string; desde?: string; hasta?: string; pacienteId?: number }) {
+  findAll(params: { estado?: string; desde?: string; hasta?: string; pacienteId?: number; sedeId?: number }) {
     const where: Prisma.ConsultaWhereInput = {};
     if (params.estado) where.estado = params.estado;
     if (params.pacienteId) where.pacienteId = params.pacienteId;
+    if (params.sedeId) where.sedeId = params.sedeId;
     if (params.desde || params.hasta) {
       where.fecha = {};
       if (params.desde) where.fecha.gte = new Date(`${params.desde}T00:00:00`);
@@ -343,8 +344,9 @@ class ConsultasController {
     @Query('desde') desde?: string,
     @Query('hasta') hasta?: string,
     @Query('pacienteId') pacienteId?: string,
+    @Query('sedeId') sedeId?: string,
   ) {
-    return this.service.findAll({ estado, desde, hasta, pacienteId: pacienteId ? Number(pacienteId) : undefined });
+    return this.service.findAll({ estado, desde, hasta, pacienteId: pacienteId ? Number(pacienteId) : undefined, sedeId: sedeId ? Number(sedeId) : undefined });
   }
 
   @Get('historias') historias(@Query('pacienteId') pacienteId?: string) {

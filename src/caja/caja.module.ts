@@ -154,7 +154,14 @@ class CajaService {
       this.prisma.gasto.findMany({ where: { cajaSesionId: id }, orderBy: { fecha: 'asc' } }),
     ]);
     const resumen = this.resumen(caja, pagos.filter((p) => !p.anulado), gastos.filter((g) => !g.anulada));
-    return { caja, resumen, pagos, gastos };
+    // Resumen por tipo de servicio: ítems de las atenciones cobradas en el turno.
+    const atencionIds = [...new Set(pagos.filter((p) => !p.anulado).map((p) => p.atencionId))];
+    const porTipoServicio: Record<string, number> = {};
+    if (atencionIds.length) {
+      const items = await this.prisma.atencionItem.findMany({ where: { atencionId: { in: atencionIds } } });
+      for (const it of items) porTipoServicio[it.kind] = (porTipoServicio[it.kind] ?? 0) + Number(it.monto);
+    }
+    return { caja, resumen, pagos, gastos, porTipoServicio };
   }
 }
 
