@@ -1,5 +1,5 @@
 import {
-  BadRequestException, Body, Controller, Get, Injectable, Module, NotFoundException,
+  BadRequestException, Body, Controller, ForbiddenException, Get, Injectable, Module, NotFoundException,
   Param, ParseIntPipe, Patch, Post, Query, Req, UseGuards,
 } from '@nestjs/common';
 import { PartialType } from '@nestjs/mapped-types';
@@ -8,6 +8,7 @@ import { IsInt, IsNumber, IsOptional, IsString } from 'class-validator';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthModule, JwtAuthGuard } from '../auth/auth.module';
+import { requireCajaAbierta } from '../caja/caja.util';
 
 const D = (v: Prisma.Decimal.Value) => new Prisma.Decimal(v);
 
@@ -67,7 +68,8 @@ class GastosService {
     return g;
   }
 
-  create(dto: CreateGastoDto, user: { sub?: number }) {
+  async create(dto: CreateGastoDto, user: { sub?: number }) {
+    const caja = await requireCajaAbierta(this.prisma, user.sub);
     return this.prisma.gasto.create({
       data: {
         descripcion: dto.descripcion,
@@ -78,6 +80,7 @@ class GastosService {
         proveedor: dto.proveedor,
         sedeId: dto.sedeId ?? null,
         usuarioId: user.sub ?? null,
+        cajaSesionId: caja.id,
         ...(dto.fecha ? { fecha: dto.fecha } : {}),
       },
       include: INCLUDE,
@@ -103,10 +106,14 @@ class GastosService {
     });
   }
 
-  async anular(id: number, dto: AnularDto, user: { sub?: number }) {
+  async anular(id: number, dto: AnularDto, user: { sub?: number; roleId?: number }) {
     const existing = await this.findOne(id);
     if (existing.anulada) throw new BadRequestException('El gasto ya está anulado');
     if (!dto.motivo?.trim()) throw new BadRequestException('Debes indicar el motivo de la anulación');
+    if (user.roleId !== 1 && existing.cajaSesionId) {
+      const caja = await this.prisma.cajaSesion.findUnique({ where: { id: existing.cajaSesionId } });
+      if (caja?.estado === 'Cerrada') throw new ForbiddenException('El gasto pertenece a una caja cerrada; solo el administrador puede anularlo.');
+    }
     return this.prisma.gasto.update({
       where: { id },
       data: { anulada: true, anuladaAt: new Date(), anuladaPorId: user.sub ?? null, motivoAnulacion: dto.motivo.trim() },

@@ -8,6 +8,7 @@ import { IsArray, IsBoolean, IsInt, IsNumber, IsOptional, IsString, ValidateNest
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthModule, JwtAuthGuard } from '../auth/auth.module';
+import { requireCajaAbierta } from '../caja/caja.util';
 
 const D = (v: Prisma.Decimal.Value) => new Prisma.Decimal(v);
 
@@ -112,7 +113,8 @@ class AtencionesService {
     return a;
   }
 
-  create(dto: CreateAtencionDto, user: { sub?: number; sedeId?: number }) {
+  async create(dto: CreateAtencionDto, user: { sub?: number; sedeId?: number }) {
+    const caja = await requireCajaAbierta(this.prisma, user.sub);
     return this.prisma.$transaction(async (tx) => {
       const at = await tx.atencion.create({
         data: {
@@ -135,6 +137,7 @@ class AtencionesService {
             tipo: 'ABONO_INICIAL',
             sedeId: at.sedeId,
             usuarioId: at.usuarioId,
+            cajaSesionId: caja.id,
           })),
         });
       }
@@ -194,19 +197,24 @@ class AtencionesService {
     if (existing.anulada) throw new BadRequestException('La atención está anulada');
     if (dto.monto <= 0) throw new BadRequestException('El monto debe ser mayor a 0');
     if (D(dto.monto).gt(existing.saldo)) throw new BadRequestException('El monto supera el saldo pendiente');
+    const caja = await requireCajaAbierta(this.prisma, user.sub);
     return this.prisma.$transaction(async (tx) => {
       await tx.pago.create({
-        data: { atencionId: id, monto: D(dto.monto), metodo: dto.metodo, tipo: 'COBRO', sedeId: existing.sedeId, usuarioId: user.sub ?? null },
+        data: { atencionId: id, monto: D(dto.monto), metodo: dto.metodo, tipo: 'COBRO', sedeId: existing.sedeId, usuarioId: user.sub ?? null, cajaSesionId: caja.id },
       });
       await this.recompute(tx, id);
       return tx.atencion.findUnique({ where: { id }, include: INCLUDE });
     });
   }
 
-  async anular(id: number, dto: AnularDto, user: { sub?: number }) {
+  async anular(id: number, dto: AnularDto, user: { sub?: number; roleId?: number }) {
     const existing = await this.findOne(id);
     if (existing.anulada) throw new BadRequestException('La atención ya está anulada');
     if (!dto.motivo?.trim()) throw new BadRequestException('Debes indicar el motivo de la anulación');
+    if (user.roleId !== 1) {
+      const enCerrada = await this.prisma.pago.findFirst({ where: { atencionId: id, cajaSesion: { estado: 'Cerrada' } } });
+      if (enCerrada) throw new ForbiddenException('La atención tiene pagos en una caja cerrada; solo el administrador puede anularla.');
+    }
     return this.prisma.$transaction(async (tx) => {
       await tx.pago.updateMany({ where: { atencionId: id }, data: { anulado: true } });
       await tx.atencion.update({
@@ -259,7 +267,7 @@ class AtencionesController {
   }
 
   @UseGuards(JwtAuthGuard)
-  @Post(':id/anular') anular(@Param('id', ParseIntPipe) id: number, @Body() dto: AnularDto, @Req() req: { user: { sub?: number } }) {
+  @Post(':id/anular') anular(@Param('id', ParseIntPipe) id: number, @Body() dto: AnularDto, @Req() req: { user: { sub?: number; roleId?: number } }) {
     return this.service.anular(id, dto, req.user);
   }
 }

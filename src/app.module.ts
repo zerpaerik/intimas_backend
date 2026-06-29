@@ -20,6 +20,7 @@ import { GastosModule } from './gastos/gastos.module';
 import { ReportesModule } from './reportes/reportes.module';
 import { TiposConsultaModule } from './tipos-consulta/tipos-consulta.module';
 import { ConsultasModule } from './consultas/consultas.module';
+import { CajaModule } from './caja/caja.module';
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { ConsultasModule } from './consultas/consultas.module';
     ReportesModule,
     TiposConsultaModule,
     ConsultasModule,
+    CajaModule,
   ],
   controllers: [AppController],
 })

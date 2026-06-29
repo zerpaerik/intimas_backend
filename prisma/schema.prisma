@@ -17,12 +17,43 @@ model Role {
 }
 
 model Sede {
-  id         Int        @id @default(autoincrement())
+  id         Int          @id @default(autoincrement())
   nombre     String
   users      User[]
   atenciones Atencion[]
   pagos      Pago[]
   gastos     Gasto[]
+  cajas      CajaSesion[]
+}
+
+// Sesión de caja: el cajero abre, acumula sus operaciones del turno y cierra con arqueo.
+model CajaSesion {
+  id                  Int       @id @default(autoincrement())
+  usuarioId           Int
+  usuario             User      @relation("CajaUsuario", fields: [usuarioId], references: [id])
+  sedeId              Int?
+  sede                Sede?     @relation(fields: [sedeId], references: [id])
+  estado              String    @default("Abierta") // Abierta | Cerrada
+  montoInicial        Decimal   @default(0) @db.Decimal(10, 2)
+  observacionApertura String?
+  fechaApertura       DateTime  @default(now())
+  fechaCierre         DateTime?
+  cerradaPorId        Int?
+  cerradaPor          User?     @relation("CajaCerrador", fields: [cerradaPorId], references: [id])
+  observacionCierre   String?
+  arqueo              Json?     // congelado al cerrar: { ingresos, gastos, esperado, contado, diferencia } por método
+  totalIngresos       Decimal?  @db.Decimal(10, 2)
+  totalGastos         Decimal?  @db.Decimal(10, 2)
+  totalDiferencia     Decimal?  @db.Decimal(10, 2)
+  pagos               Pago[]
+  gastos              Gasto[]
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([usuarioId])
+  @@index([estado])
+  @@index([sedeId])
+  @@index([fechaApertura])
 }
 
 model User {
@@ -39,6 +70,8 @@ model User {
   atencionesAnuladas Atencion[] @relation("AtencionAnulador")
   pagos              Pago[]
   gastos             Gasto[]
+  cajas              CajaSesion[] @relation("CajaUsuario")
+  cajasCerradas      CajaSesion[] @relation("CajaCerrador")
   createdAt          DateTime   @default(now())
 }
 
@@ -247,6 +280,8 @@ model Pago {
   usuarioId  Int?
   usuario    User?    @relation(fields: [usuarioId], references: [id])
   anulado    Boolean  @default(false)
+  cajaSesionId Int?
+  cajaSesion CajaSesion? @relation(fields: [cajaSesionId], references: [id])
   createdAt  DateTime @default(now())
 
   @@index([fecha])
@@ -254,6 +289,7 @@ model Pago {
   @@index([metodo])
   @@index([atencionId])
   @@index([anulado])
+  @@index([cajaSesionId])
 }
 
 model Gasto {
@@ -273,6 +309,8 @@ model Gasto {
   anuladaAt       DateTime?
   anuladaPorId    Int?
   motivoAnulacion String?
+  cajaSesionId    Int?
+  cajaSesion      CajaSesion? @relation(fields: [cajaSesionId], references: [id])
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -280,6 +318,7 @@ model Gasto {
   @@index([sedeId])
   @@index([categoria])
   @@index([anulada])
+  @@index([cajaSesionId])
 }
 
 // ───────── Clínico: consultas, historias y controles ─────────
