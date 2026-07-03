@@ -43,6 +43,15 @@ class PacientesService extends BaseCrudService {
     super(prisma.paciente, ['nombres', 'apellidos', 'numDoc', 'email', 'telefono']);
   }
 
+  // Búsqueda acotada: nunca traer todos los pacientes (24k) al listado/typeahead.
+  findAll(search?: string) {
+    const where =
+      search && this.searchFields.length
+        ? { OR: this.searchFields.map((f) => ({ [f]: { contains: search, mode: 'insensitive' as const } })) }
+        : undefined;
+    return this.prisma.paciente.findMany({ where, orderBy: { id: 'desc' }, take: 50 });
+  }
+
   async historial(id: number) {
     const paciente = await this.prisma.paciente.findUnique({ where: { id } });
     if (!paciente) throw new NotFoundException(`Paciente #${id} no encontrado`);

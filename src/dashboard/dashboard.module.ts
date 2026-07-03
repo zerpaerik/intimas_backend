@@ -23,21 +23,27 @@ class DashboardService {
 
   async summary(sedeId?: number) {
     const sedeF = sedeId ? { sedeId } : {};
-    const [ats, pagos, gastos, pacientes, profesionales, servicios, analisis, paquetes] = await Promise.all([
+    // El dashboard solo usa los últimos 14 días + hoy: acotamos la consulta a esa
+    // ventana para no cargar TODO el histórico de atenciones/pagos/gastos en memoria.
+    const now = new Date();
+    const desde = new Date(now);
+    desde.setDate(now.getDate() - 13);
+    desde.setHours(0, 0, 0, 0);
+    const rango = { gte: desde };
+    const [ats, pagos, gastos, totalAtenciones, pacientes, profesionales, servicios, analisis, paquetes] = await Promise.all([
       this.prisma.atencion.findMany({
-        where: { anulada: false, ...sedeF },
+        where: { anulada: false, fecha: rango, ...sedeF },
         include: { items: true, paciente: { select: { nombres: true, apellidos: true } } },
       }),
-      this.prisma.pago.findMany({ where: { anulado: false, ...sedeF }, select: { monto: true, metodo: true, fecha: true } }),
-      this.prisma.gasto.findMany({ where: { anulada: false, ...sedeF }, select: { monto: true, fecha: true } }),
+      this.prisma.pago.findMany({ where: { anulado: false, fecha: rango, ...sedeF }, select: { monto: true, metodo: true, fecha: true } }),
+      this.prisma.gasto.findMany({ where: { anulada: false, fecha: rango, ...sedeF }, select: { monto: true, fecha: true } }),
+      this.prisma.atencion.count({ where: { anulada: false, ...sedeF } }),
       this.prisma.paciente.count(),
       this.prisma.profesional.count(),
       this.prisma.servicio.count(),
       this.prisma.analisis.count(),
       this.prisma.paquete.count(),
     ]);
-
-    const now = new Date();
     const hoyPagos = pagos.filter((p) => sameDay(new Date(p.fecha), now));
     const hoyAts = ats.filter((a) => sameDay(new Date(a.fecha), now));
     const hoyGastos = gastos.filter((g) => sameDay(new Date(g.fecha), now));
@@ -111,7 +117,7 @@ class DashboardService {
       topServicios,
       atencionesPorEstado,
       actividadReciente,
-      counts: { pacientes, profesionales, servicios, analisis, paquetes, atenciones: ats.length },
+      counts: { pacientes, profesionales, servicios, analisis, paquetes, atenciones: totalAtenciones },
     };
   }
 }
