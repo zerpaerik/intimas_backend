@@ -41,7 +41,7 @@ model CajaSesion {
   cerradaPorId        Int?
   cerradaPor          User?     @relation("CajaCerrador", fields: [cerradaPorId], references: [id])
   observacionCierre   String?
-  arqueo              Json?     // congelado al cerrar: { ingresos, gastos, esperado, contado, diferencia } por método
+  arqueo              Json? // congelado al cerrar: { ingresos, gastos, esperado, contado, diferencia } por método
   totalIngresos       Decimal?  @db.Decimal(10, 2)
   totalGastos         Decimal?  @db.Decimal(10, 2)
   totalDiferencia     Decimal?  @db.Decimal(10, 2)
@@ -57,42 +57,43 @@ model CajaSesion {
 }
 
 model User {
-  id                 Int        @id @default(autoincrement())
+  id                 Int          @id @default(autoincrement())
   nombre             String
-  email              String     @unique
+  email              String       @unique
   password           String
   title              String?
   roleId             Int
-  role               Role       @relation(fields: [roleId], references: [id])
+  role               Role         @relation(fields: [roleId], references: [id])
   sedeId             Int?
-  sede               Sede?      @relation(fields: [sedeId], references: [id])
-  atenciones         Atencion[] @relation("AtencionRegistrador")
-  atencionesAnuladas Atencion[] @relation("AtencionAnulador")
+  sede               Sede?        @relation(fields: [sedeId], references: [id])
+  atenciones         Atencion[]   @relation("AtencionRegistrador")
+  atencionesAnuladas Atencion[]   @relation("AtencionAnulador")
   pagos              Pago[]
   gastos             Gasto[]
   cajas              CajaSesion[] @relation("CajaUsuario")
   cajasCerradas      CajaSesion[] @relation("CajaCerrador")
-  createdAt          DateTime   @default(now())
+  resultados         Resultado[]
+  createdAt          DateTime     @default(now())
 }
 
 // ───────── Maestros (Archivos) ─────────
 model Paciente {
-  id              Int        @id @default(autoincrement())
-  nombres         String
-  apellidos       String
-  tipoDoc         String?
-  numDoc          String?
-  fechaNacimiento DateTime?
-  sexo            String?
-  telefono        String?
-  email           String?
-  ocupacion       String?
-  estadoCivil     String?
-  direccion       String?
-  alergias        String?
-  antPatologicos  String?
-  antFamiliares   String?
-  grupoSanguineo  String?
+  id                 Int         @id @default(autoincrement())
+  nombres            String
+  apellidos          String
+  tipoDoc            String?
+  numDoc             String?
+  fechaNacimiento    DateTime?
+  sexo               String?
+  telefono           String?
+  email              String?
+  ocupacion          String?
+  estadoCivil        String?
+  direccion          String?
+  alergias           String?
+  antPatologicos     String?
+  antFamiliares      String?
+  grupoSanguineo     String?
   // Antecedentes del formato Historia Clínica (se cargan una vez, reutilizables)
   antPersonales      String?
   antEpidemiologicos String?
@@ -103,11 +104,12 @@ model Paciente {
   familiarNombre     String?
   familiarParentesco String?
   familiarDni        String?
-  atenciones      Atencion[]
-  consultas       Consulta[]
-  gestaciones     Gestacion[]
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
+  atenciones         Atencion[]
+  consultas          Consulta[]
+  gestaciones        Gestacion[]
+  resultados         Resultado[]
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
 }
 
 model Centro {
@@ -121,16 +123,17 @@ model Centro {
 }
 
 model Laboratorio {
-  id         Int      @id @default(autoincrement())
+  id         Int         @id @default(autoincrement())
   nombre     String
   direccion  String?
   referencia String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  resultados Resultado[]
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
 }
 
 model Profesional {
-  id           Int       @id @default(autoincrement())
+  id           Int         @id @default(autoincrement())
   nombres      String
   apellidos    String
   cmp          String?
@@ -138,13 +141,14 @@ model Profesional {
   telefono     String?
   especialidad String?
   centroId     Int?
-  centro       Centro?   @relation(fields: [centroId], references: [id])
+  centro       Centro?     @relation(fields: [centroId], references: [id])
   consultorio  String?
   turno        String?
   codigoSalud  String?
   consultas    Consulta[]
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  resultados   Resultado[]
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
 }
 
 model Personal {
@@ -240,6 +244,7 @@ model Atencion {
   items         AtencionItem[]
   pagos         Pago[]
   consultas     Consulta[]
+  resultados    Resultado[]
 
   // Anulación (soft delete) + auditoría
   anulada         Boolean   @default(false)
@@ -258,31 +263,32 @@ model Atencion {
 }
 
 model AtencionItem {
-  id         Int      @id @default(autoincrement())
+  id         Int        @id @default(autoincrement())
   atencionId Int
-  atencion   Atencion @relation(fields: [atencionId], references: [id], onDelete: Cascade)
+  atencion   Atencion   @relation(fields: [atencionId], references: [id], onDelete: Cascade)
   kind       String
   nombre     String
-  monto      Decimal  @default(0) @db.Decimal(10, 2)
+  monto      Decimal    @default(0) @db.Decimal(10, 2)
+  resultado  Resultado?
 }
 
 // ───────── Finanzas: ledger de ingresos y egresos ─────────
 model Pago {
-  id         Int      @id @default(autoincrement())
-  atencionId Int
-  atencion   Atencion @relation(fields: [atencionId], references: [id], onDelete: Cascade)
-  monto      Decimal  @db.Decimal(10, 2)
-  metodo     String   @default("Efectivo") // Efectivo | Tarjeta | Depósito | Yape
-  tipo       String   @default("ABONO_INICIAL") // ABONO_INICIAL | COBRO
-  fecha      DateTime @default(now())
-  sedeId     Int?
-  sede       Sede?    @relation(fields: [sedeId], references: [id])
-  usuarioId  Int?
-  usuario    User?    @relation(fields: [usuarioId], references: [id])
-  anulado    Boolean  @default(false)
+  id           Int         @id @default(autoincrement())
+  atencionId   Int
+  atencion     Atencion    @relation(fields: [atencionId], references: [id], onDelete: Cascade)
+  monto        Decimal     @db.Decimal(10, 2)
+  metodo       String      @default("Efectivo") // Efectivo | Tarjeta | Depósito | Yape
+  tipo         String      @default("ABONO_INICIAL") // ABONO_INICIAL | COBRO
+  fecha        DateTime    @default(now())
+  sedeId       Int?
+  sede         Sede?       @relation(fields: [sedeId], references: [id])
+  usuarioId    Int?
+  usuario      User?       @relation(fields: [usuarioId], references: [id])
+  anulado      Boolean     @default(false)
   cajaSesionId Int?
-  cajaSesion CajaSesion? @relation(fields: [cajaSesionId], references: [id])
-  createdAt  DateTime @default(now())
+  cajaSesion   CajaSesion? @relation(fields: [cajaSesionId], references: [id])
+  createdAt    DateTime    @default(now())
 
   @@index([fecha])
   @@index([sedeId])
@@ -293,26 +299,26 @@ model Pago {
 }
 
 model Gasto {
-  id              Int       @id @default(autoincrement())
-  fecha           DateTime  @default(now())
+  id              Int         @id @default(autoincrement())
+  fecha           DateTime    @default(now())
   categoria       String?
   descripcion     String
   nota            String?
-  monto           Decimal   @db.Decimal(10, 2)
-  metodo          String    @default("Efectivo")
+  monto           Decimal     @db.Decimal(10, 2)
+  metodo          String      @default("Efectivo")
   proveedor       String?
   sedeId          Int?
-  sede            Sede?     @relation(fields: [sedeId], references: [id])
+  sede            Sede?       @relation(fields: [sedeId], references: [id])
   usuarioId       Int?
-  usuario         User?     @relation(fields: [usuarioId], references: [id])
-  anulada         Boolean   @default(false)
+  usuario         User?       @relation(fields: [usuarioId], references: [id])
+  anulada         Boolean     @default(false)
   anuladaAt       DateTime?
   anuladaPorId    Int?
   motivoAnulacion String?
   cajaSesionId    Int?
   cajaSesion      CajaSesion? @relation(fields: [cajaSesionId], references: [id])
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
 
   @@index([fecha])
   @@index([sedeId])
@@ -337,28 +343,28 @@ model TipoConsulta {
 }
 
 model Consulta {
-  id             Int              @id @default(autoincrement())
-  fecha          DateTime         @default(now())
+  id             Int                 @id @default(autoincrement())
+  fecha          DateTime            @default(now())
   pacienteId     Int
-  paciente       Paciente         @relation(fields: [pacienteId], references: [id])
+  paciente       Paciente            @relation(fields: [pacienteId], references: [id])
   atencionId     Int?
-  atencion       Atencion?        @relation(fields: [atencionId], references: [id], onDelete: SetNull)
+  atencion       Atencion?           @relation(fields: [atencionId], references: [id], onDelete: SetNull)
   tipoConsultaId Int?
-  tipoConsulta   TipoConsulta?    @relation(fields: [tipoConsultaId], references: [id])
+  tipoConsulta   TipoConsulta?       @relation(fields: [tipoConsultaId], references: [id])
   tipoNombre     String
   especialidad   String?
-  prenatal       Boolean          @default(false)
-  pediatrico     Boolean          @default(false)
-  gineco         Boolean          @default(false)
+  prenatal       Boolean             @default(false)
+  pediatrico     Boolean             @default(false)
+  gineco         Boolean             @default(false)
   especialistaId Int?
-  especialista   Profesional?     @relation(fields: [especialistaId], references: [id])
-  estado         String           @default("Pendiente") // Pendiente | Atendida
+  especialista   Profesional?        @relation(fields: [especialistaId], references: [id])
+  estado         String              @default("Pendiente") // Pendiente | Atendida
   sedeId         Int?
   usuarioId      Int?
   historia       HistoriaClinica?
   control        ControlPrenatal?
   pediatrica     HistoriaPediatrica?
-  createdAt      DateTime         @default(now())
+  createdAt      DateTime            @default(now())
 
   @@index([pacienteId])
   @@index([estado])
@@ -366,12 +372,12 @@ model Consulta {
 }
 
 model HistoriaClinica {
-  id              Int      @id @default(autoincrement())
-  consultaId      Int      @unique
-  consulta        Consulta @relation(fields: [consultaId], references: [id], onDelete: Cascade)
+  id              Int           @id @default(autoincrement())
+  consultaId      Int           @unique
+  consulta        Consulta      @relation(fields: [consultaId], references: [id], onDelete: Cascade)
   pacienteId      Int
   especialistaId  Int?
-  fecha           DateTime @default(now())
+  fecha           DateTime      @default(now())
   // 2 · Enfermedad actual
   enfInicio       String?
   enfCurso        String?
@@ -389,11 +395,11 @@ model HistoriaClinica {
   observaciones   String?
   diagnosticos    Diagnostico[]
   tratamientos    Tratamiento[]
-  cerrada         Boolean  @default(false)
+  cerrada         Boolean       @default(false)
   fechaCierre     DateTime?
   usuarioId       Int?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 }
 
 model Diagnostico {
@@ -424,22 +430,22 @@ model Cie10 {
 
 // Historia Clínica Pediátrica (formato estandarizado pediátrico)
 model HistoriaPediatrica {
-  id              Int      @id @default(autoincrement())
-  consultaId      Int      @unique
-  consulta        Consulta @relation(fields: [consultaId], references: [id], onDelete: Cascade)
-  pacienteId      Int
-  especialistaId  Int?
-  fecha           DateTime @default(now())
+  id                  Int       @id @default(autoincrement())
+  consultaId          Int       @unique
+  consulta            Consulta  @relation(fields: [consultaId], references: [id], onDelete: Cascade)
+  pacienteId          Int
+  especialistaId      Int?
+  fecha               DateTime  @default(now())
   // 1 · Identificación pediátrica
-  cama            String?
-  informante      String?
-  lugarNacimiento String?
-  procedencia     String?
-  seguro          String?
-  madreNombre     String?
-  padreNombre     String?
-  servicioIngreso String?
-  referido        String?
+  cama                String?
+  informante          String?
+  lugarNacimiento     String?
+  procedencia         String?
+  seguro              String?
+  madreNombre         String?
+  padreNombre         String?
+  servicioIngreso     String?
+  referido            String?
   // 2 · Enfermedad actual
   motivoConsulta      String?
   tiempoEnfermedad    String?
@@ -449,42 +455,42 @@ model HistoriaPediatrica {
   funcionesBiologicas String?
   revisionSistemas    String?
   // 3 · Antecedentes personales
-  antPerinatales   String?
-  pesoNacer        String?
-  tallaNacer       String?
-  apgar            String?
-  antNutricionales String?
-  desarrollo       String?
-  escolaridad      String?
-  inmunizaciones   String?
-  antPatologicos   String?
+  antPerinatales      String?
+  pesoNacer           String?
+  tallaNacer          String?
+  apgar               String?
+  antNutricionales    String?
+  desarrollo          String?
+  escolaridad         String?
+  inmunizaciones      String?
+  antPatologicos      String?
   // 4-5 · Familiares y socioeconómicos
-  antFamiliares      String?
-  antSocioeconomicos String?
+  antFamiliares       String?
+  antSocioeconomicos  String?
   // 7 · Examen físico · somatometría
-  peso               String?
-  talla              String?
-  pc                 String?
-  perimetroAbdominal String?
-  imc                String?
-  fc                 String?
-  fr                 String?
-  ta                 String?
-  temperatura        String?
-  percentiles        String?
-  inspeccionGeneral  String?
+  peso                String?
+  talla               String?
+  pc                  String?
+  perimetroAbdominal  String?
+  imc                 String?
+  fc                  String?
+  fr                  String?
+  ta                  String?
+  temperatura         String?
+  percentiles         String?
+  inspeccionGeneral   String?
   // 10 · Hipótesis diagnóstica
-  dxPatologia   String?
-  dxCrecimiento String?
+  dxPatologia         String?
+  dxCrecimiento       String?
   // 11-12 · Planes
-  planEstudio String?
-  planManejo  String?
+  planEstudio         String?
+  planManejo          String?
   // Cierre
-  cerrada     Boolean   @default(false)
-  fechaCierre DateTime?
-  usuarioId   Int?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  cerrada             Boolean   @default(false)
+  fechaCierre         DateTime?
+  usuarioId           Int?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   @@index([pacienteId])
 }
@@ -568,4 +574,60 @@ model Gestacion {
 
   @@index([pacienteId])
   @@index([estado])
+}
+
+// ───────── Resultados (laboratorio y servicios/ecografías) ─────────
+// Plantillas de informe reutilizables (migradas del sistema anterior + editables en la app).
+model PlantillaInforme {
+  id         Int         @id @default(autoincrement())
+  nombre     String
+  tipo       String // Ecografía | Laboratorio | Rayos X | ...
+  cuerpo     String      @db.Text // HTML del cuerpo del informe (sin cabecera)
+  activo     Boolean     @default(true)
+  resultados Resultado[]
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  @@index([tipo])
+}
+
+// Un Resultado existe SOLO cuando el estudio se resuelve. Un ítem de atención sin
+// Resultado = "pendiente". Soporta dos modos: informe redactado en la app o archivo adjunto.
+model Resultado {
+  id             Int               @id @default(autoincrement())
+  atencionItemId Int               @unique
+  atencionItem   AtencionItem      @relation(fields: [atencionItemId], references: [id], onDelete: Cascade)
+  atencionId     Int
+  atencion       Atencion          @relation(fields: [atencionId], references: [id], onDelete: Cascade)
+  pacienteId     Int
+  paciente       Paciente          @relation(fields: [pacienteId], references: [id])
+  categoria      String // Laboratorio | Servicio (define el carril)
+  tipo           String? // kind del ítem: Ecografía | Rayos X | Laboratorio…
+  nombre         String // nombre del estudio (copia del ítem)
+  estado         String            @default("Completado")
+  // Modo informe (redactado en la app)
+  plantillaId    Int?
+  plantilla      PlantillaInforme? @relation(fields: [plantillaId], references: [id])
+  informeHtml    String?           @db.Text
+  // Modo archivo (adjunto que llega del laboratorio / imagen de eco)
+  archivoNombre  String?
+  archivoMime    String?
+  archivoTamano  Int?
+  archivoPath    String? // ruta relativa dentro del volumen
+  // Datos comunes
+  laboratorioId  Int?
+  laboratorio    Laboratorio?      @relation(fields: [laboratorioId], references: [id])
+  profesionalId  Int?
+  profesional    Profesional?      @relation(fields: [profesionalId], references: [id])
+  observaciones  String?
+  fechaResultado DateTime          @default(now())
+  usuarioId      Int?
+  usuario        User?             @relation(fields: [usuarioId], references: [id])
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@index([atencionId])
+  @@index([pacienteId])
+  @@index([categoria])
+  @@index([fechaResultado])
 }
