@@ -62,18 +62,21 @@ class PacientesService extends BaseCrudService {
       orderBy: { fecha: 'desc' },
     });
 
-    const resultados = atenciones
-      .flatMap((a) =>
-        a.items
-          .filter((i) => ['Laboratorio', 'Ecografía', 'Rayos X'].includes(i.kind))
-          .map((i) => ({
-            nombre: i.nombre,
-            tipo: i.kind === 'Laboratorio' ? 'Laboratorio' : 'Servicio',
-            fecha: a.fecha,
-            estado: a.estado === 'Pagado' ? 'Entregado' : 'En proceso',
-          })),
-      )
-      .slice(0, 10);
+    // Resultados reales del paciente (informes redactados o archivos adjuntos).
+    const resultadosRows = await this.prisma.resultado.findMany({
+      where: { pacienteId: id },
+      orderBy: { fechaResultado: 'desc' },
+      take: 20,
+      select: { id: true, nombre: true, tipo: true, categoria: true, fechaResultado: true, archivoPath: true },
+    });
+    const resultados = resultadosRows.map((r) => ({
+      id: r.id,
+      nombre: r.nombre,
+      tipo: r.tipo ?? r.categoria,
+      fecha: r.fechaResultado,
+      estado: r.archivoPath ? 'Archivo' : 'Informe',
+      esArchivo: !!r.archivoPath,
+    }));
 
     return {
       antecedentes: {

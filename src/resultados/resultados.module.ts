@@ -169,6 +169,35 @@ class ResultadosService implements OnModuleInit {
     });
   }
 
+  /** Contexto de un ítem para el editor de informe (paciente, estudio, fecha). */
+  async contexto(itemId: number) {
+    const item = await this.prisma.atencionItem.findUnique({
+      where: { id: itemId },
+      include: {
+        atencion: {
+          select: {
+            id: true, fecha: true, origenTipo: true, origenValor: true, sedeId: true,
+            paciente: { select: { id: true, nombres: true, apellidos: true, numDoc: true, tipoDoc: true, fechaNacimiento: true, sexo: true } },
+          },
+        },
+        resultado: { select: { id: true } },
+      },
+    });
+    if (!item) throw new NotFoundException('Estudio (ítem de atención) no encontrado');
+    return {
+      itemId: item.id,
+      kind: item.kind,
+      nombre: item.nombre,
+      categoria: categoriaForKind(item.kind),
+      atencionId: item.atencionId,
+      fecha: item.atencion.fecha,
+      origenTipo: item.atencion.origenTipo,
+      origenValor: item.atencion.origenValor,
+      paciente: item.atencion.paciente,
+      yaResuelto: !!item.resultado,
+    };
+  }
+
   async findOne(id: number) {
     const r = await this.prisma.resultado.findUnique({ where: { id }, include: RESULT_INCLUDE });
     if (!r) throw new NotFoundException(`Resultado #${id} no encontrado`);
@@ -330,6 +359,11 @@ class ResultadosController {
   @Get('plantillas')
   plantillas(@Query('tipo') tipo?: string, @Query('all') all?: string) {
     return this.service.plantillas(tipo, all === '1' || all === 'true');
+  }
+
+  @Get('contexto/:itemId')
+  contexto(@Param('itemId', ParseIntPipe) itemId: number) {
+    return this.service.contexto(itemId);
   }
 
   @UseGuards(JwtAuthGuard)
