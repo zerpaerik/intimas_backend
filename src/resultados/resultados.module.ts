@@ -16,21 +16,25 @@ import { PLANTILLAS_SEED } from './plantillas.seed';
 
 // Carril de laboratorio (análisis) vs. servicios/ecografías (informe redactado).
 const LAB_KINDS = ['Laboratorio'];
-const SERVICIO_KINDS = ['Ecografía', 'Rayos X', 'Salud Mental', 'Otros', 'Servicio'];
+// Kinds que NO generan resultado. Todo lo demás (cualquier tipo de servicio/ecografía,
+// sin importar mayúsculas/tildes: "ECOGRAFIA", "OTROS", "RAYOS", etc.) va al carril de servicios.
+const NO_RESULTADO_KINDS = ['Laboratorio', 'Consulta', 'Método', 'Paquete'];
 
 // Carpeta de almacenamiento (en Railway apunta al volumen vía UPLOADS_DIR).
 const UPLOADS_DIR = process.env.UPLOADS_DIR || path.resolve(process.cwd(), 'uploads');
 
-function kindsForTrack(track?: string) {
-  return track === 'lab' ? LAB_KINDS : SERVICIO_KINDS;
+// Filtro de kinds por carril: laboratorio = solo 'Laboratorio'; servicio = cualquier
+// servicio/ecografía (cualquier tipo), excluyendo lo que no genera resultado.
+function kindFilterForTrack(track?: string) {
+  return track === 'lab' ? { in: LAB_KINDS } : { notIn: NO_RESULTADO_KINDS };
 }
 function categoriaForTrack(track?: string) {
   return track === 'lab' ? 'Laboratorio' : 'Servicio';
 }
 function categoriaForKind(kind: string): string | null {
-  if (LAB_KINDS.includes(kind)) return 'Laboratorio';
-  if (SERVICIO_KINDS.includes(kind)) return 'Servicio';
-  return null;
+  if (kind === 'Laboratorio') return 'Laboratorio';
+  if (NO_RESULTADO_KINDS.includes(kind)) return null; // Consulta/Método/Paquete no generan resultado
+  return 'Servicio'; // cualquier otro servicio/ecografía, sin importar el tipo
 }
 
 interface UploadedFileLike {
@@ -121,7 +125,7 @@ class ResultadosService implements OnModuleInit {
   async pendientes(track: string | undefined, p: { desde?: string; hasta?: string; sedeId?: number; search?: string }) {
     const items = await this.prisma.atencionItem.findMany({
       where: {
-        kind: { in: kindsForTrack(track) },
+        kind: kindFilterForTrack(track),
         resultado: { is: null },
         atencion: {
           anulada: false,
