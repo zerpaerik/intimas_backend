@@ -73,6 +73,8 @@ model User {
   cajas              CajaSesion[] @relation("CajaUsuario")
   cajasCerradas      CajaSesion[] @relation("CajaCerrador")
   resultados         Resultado[]
+  mensajesEnviados   Mensaje[]    @relation("MensajesEnviados")
+  mensajesRecibidos  Mensaje[]    @relation("MensajesRecibidos")
   createdAt          DateTime     @default(now())
 }
 
@@ -108,6 +110,7 @@ model Paciente {
   consultas          Consulta[]
   gestaciones        Gestacion[]
   resultados         Resultado[]
+  mensajes           Mensaje[]
   createdAt          DateTime    @default(now())
   updatedAt          DateTime    @updatedAt
 }
@@ -275,11 +278,12 @@ model AtencionItem {
 // ───────── Finanzas: ledger de ingresos y egresos ─────────
 model Pago {
   id           Int         @id @default(autoincrement())
-  atencionId   Int
-  atencion     Atencion    @relation(fields: [atencionId], references: [id], onDelete: Cascade)
+  atencionId   Int?
+  atencion     Atencion?   @relation(fields: [atencionId], references: [id], onDelete: Cascade)
+  concepto     String? // solo para "Otros ingresos" (pagos sin atención)
   monto        Decimal     @db.Decimal(10, 2)
   metodo       String      @default("Efectivo") // Efectivo | Tarjeta | Depósito | Yape
-  tipo         String      @default("ABONO_INICIAL") // ABONO_INICIAL | COBRO
+  tipo         String      @default("ABONO_INICIAL") // ABONO_INICIAL | COBRO | OTRO_INGRESO
   fecha        DateTime    @default(now())
   sedeId       Int?
   sede         Sede?       @relation(fields: [sedeId], references: [id])
@@ -630,4 +634,24 @@ model Resultado {
   @@index([pacienteId])
   @@index([categoria])
   @@index([fechaResultado])
+}
+
+// ───────── Mensajería interna entre usuarios ─────────
+model Mensaje {
+  id         Int       @id @default(autoincrement())
+  deId       Int
+  de         User      @relation("MensajesEnviados", fields: [deId], references: [id])
+  paraId     Int
+  para       User      @relation("MensajesRecibidos", fields: [paraId], references: [id])
+  pacienteId Int?
+  paciente   Paciente? @relation(fields: [pacienteId], references: [id])
+  asunto     String?
+  cuerpo     String    @db.Text
+  leido      Boolean   @default(false)
+  leidoAt    DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([paraId, leido])
+  @@index([deId])
+  @@index([createdAt])
 }

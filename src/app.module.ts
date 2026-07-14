@@ -22,6 +22,8 @@ import { TiposConsultaModule } from './tipos-consulta/tipos-consulta.module';
 import { ConsultasModule } from './consultas/consultas.module';
 import { CajaModule } from './caja/caja.module';
 import { ResultadosModule } from './resultados/resultados.module';
+import { OtrosIngresosModule } from './otros-ingresos/otros-ingresos.module';
+import { MensajesModule } from './mensajes/mensajes.module';
 
 @Module({
   imports: [
@@ -47,6 +49,8 @@ import { ResultadosModule } from './resultados/resultados.module';
     ConsultasModule,
     CajaModule,
     ResultadosModule,
+    OtrosIngresosModule,
+    MensajesModule,
   ],
   controllers: [AppController],
 })

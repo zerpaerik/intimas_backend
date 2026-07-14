@@ -155,7 +155,7 @@ class CajaService {
     ]);
     const resumen = this.resumen(caja, pagos.filter((p) => !p.anulado), gastos.filter((g) => !g.anulada));
     // Resumen por tipo de servicio: ítems de las atenciones cobradas en el turno.
-    const atencionIds = [...new Set(pagos.filter((p) => !p.anulado).map((p) => p.atencionId))];
+    const atencionIds = [...new Set(pagos.filter((p) => !p.anulado).map((p) => p.atencionId).filter((x): x is number => x != null))];
     const porTipoServicio: Record<string, number> = {};
     if (atencionIds.length) {
       const items = await this.prisma.atencionItem.findMany({ where: { atencionId: { in: atencionIds } } });
