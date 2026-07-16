@@ -128,6 +128,101 @@ class ReportesService {
     const total = rows.reduce((s, r) => s.plus(r.monto), D(0));
     return { rows, porTipo, total, cantidad: rows.length };
   }
+
+  /** Producción por servicio: cantidad + monto por servicio (nombre) y por tipo (kind). */
+  async porServicio(params: { desde?: string; hasta?: string; sedeId?: number }) {
+    const atencion: Prisma.AtencionWhereInput = { anulada: false };
+    if (params.desde || params.hasta) {
+      atencion.fecha = {};
+      if (params.desde) atencion.fecha.gte = new Date(`${params.desde}T00:00:00`);
+      if (params.hasta) atencion.fecha.lte = new Date(`${params.hasta}T23:59:59.999`);
+    }
+    if (params.sedeId) atencion.sedeId = params.sedeId;
+
+    const grupos = await this.prisma.atencionItem.groupBy({
+      by: ['kind', 'nombre'],
+      where: { atencion },
+      _count: true,
+      _sum: { monto: true },
+      orderBy: { _sum: { monto: 'desc' } },
+    });
+    const porServicio = grupos.map((g) => ({
+      kind: g.kind,
+      nombre: g.nombre,
+      cantidad: g._count,
+      monto: Number(g._sum.monto ?? 0),
+    }));
+    const tipoMap: Record<string, { cantidad: number; monto: number }> = {};
+    for (const s of porServicio) {
+      const t = (tipoMap[s.kind] ??= { cantidad: 0, monto: 0 });
+      t.cantidad += s.cantidad;
+      t.monto += s.monto;
+    }
+    const porTipo = Object.entries(tipoMap)
+      .map(([kind, v]) => ({ kind, ...v }))
+      .sort((a, b) => b.monto - a.monto);
+    const total = porServicio.reduce(
+      (s, x) => ({ cantidad: s.cantidad + x.cantidad, monto: s.monto + x.monto }),
+      { cantidad: 0, monto: 0 },
+    );
+    return { porServicio, porTipo, total };
+  }
+
+  /** Productividad por profesional: consultas atendidas (especialista) y ecografías (informes). */
+  async porProfesional(params: { desde?: string; hasta?: string; sedeId?: number }) {
+    const rango: Prisma.DateTimeFilter = {};
+    if (params.desde) rango.gte = new Date(`${params.desde}T00:00:00`);
+    if (params.hasta) rango.lte = new Date(`${params.hasta}T23:59:59.999`);
+    const hasRango = !!(params.desde || params.hasta);
+    const sedeId = params.sedeId;
+
+    const [consGrp, ecoGrp] = await Promise.all([
+      this.prisma.consulta.groupBy({
+        by: ['especialistaId'],
+        where: {
+          especialistaId: { not: null },
+          ...(hasRango ? { fecha: rango } : {}),
+          ...(sedeId ? { sedeId } : {}),
+        },
+        _count: true,
+      }),
+      this.prisma.resultado.groupBy({
+        by: ['profesionalId'],
+        where: {
+          categoria: 'Servicio',
+          profesionalId: { not: null },
+          ...(hasRango ? { fechaResultado: rango } : {}),
+          ...(sedeId ? { atencion: { sedeId } } : {}),
+        },
+        _count: true,
+      }),
+    ]);
+
+    const ids = [
+      ...new Set(
+        [...consGrp.map((c) => c.especialistaId), ...ecoGrp.map((e) => e.profesionalId)].filter(
+          (x): x is number => x != null,
+        ),
+      ),
+    ];
+    const profs = ids.length
+      ? await this.prisma.profesional.findMany({
+          where: { id: { in: ids } },
+          select: { id: true, nombres: true, apellidos: true, especialidad: true },
+        })
+      : [];
+    const nombre = (id: number | null) => {
+      const p = profs.find((x) => x.id === id);
+      return p ? `${p.nombres} ${p.apellidos}`.trim() : '—';
+    };
+    const consultasPorProfesional = consGrp
+      .map((c) => ({ profesionalId: c.especialistaId, profesional: nombre(c.especialistaId), cantidad: c._count }))
+      .sort((a, b) => b.cantidad - a.cantidad);
+    const ecografiasPorProfesional = ecoGrp
+      .map((e) => ({ profesionalId: e.profesionalId, profesional: nombre(e.profesionalId), cantidad: e._count }))
+      .sort((a, b) => b.cantidad - a.cantidad);
+    return { consultasPorProfesional, ecografiasPorProfesional };
+  }
 }
 
 @Controller('reportes')
@@ -156,6 +251,22 @@ class ReportesController {
     @Query('sedeId') sedeId?: string,
   ) {
     return this.service.detallado({ desde, hasta, sedeId: sedeId ? Number(sedeId) : undefined });
+  }
+
+  @Get('por-servicio') porServicio(
+    @Query('desde') desde?: string,
+    @Query('hasta') hasta?: string,
+    @Query('sedeId') sedeId?: string,
+  ) {
+    return this.service.porServicio({ desde, hasta, sedeId: sedeId ? Number(sedeId) : undefined });
+  }
+
+  @Get('por-profesional') porProfesional(
+    @Query('desde') desde?: string,
+    @Query('hasta') hasta?: string,
+    @Query('sedeId') sedeId?: string,
+  ) {
+    return this.service.porProfesional({ desde, hasta, sedeId: sedeId ? Number(sedeId) : undefined });
   }
 }
 
