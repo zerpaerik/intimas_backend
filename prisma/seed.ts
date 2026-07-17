@@ -32,15 +32,15 @@ async function main() {
   await prisma.sede.deleteMany();
   await prisma.role.deleteMany();
 
-  // Roles (ids del sistema original)
+  // Roles (ids y nombres del sistema original íntimas)
   await prisma.role.createMany({
     data: [
-      { id: 1, nombre: 'Administrador', descripcion: 'Acceso total' },
-      { id: 2, nombre: 'Admin. Financiero', descripcion: 'Caja, cobros y comisiones' },
-      { id: 7, nombre: 'Personal Clínico', descripcion: 'Atenciones, consultas e historias' },
-      { id: 10, nombre: 'Técnico de Laboratorio', descripcion: 'Resultados y análisis' },
-      { id: 11, nombre: 'Visitador Médico', descripcion: 'Comisiones y visitas' },
-      { id: 12, nombre: 'Gerente Sede C', descripcion: 'Reportes y finanzas de la sede' },
+      { id: 1, nombre: 'Super Administrador', descripcion: 'Administración total del sistema' },
+      { id: 2, nombre: 'Administrador', descripcion: 'Administrador de empresa' },
+      { id: 7, nombre: 'Recepcionista', descripcion: 'Recepcionista de Empresa' },
+      { id: 10, nombre: 'PROFESIONAL DE LA SALUD', descripcion: 'MEDICO/OBSTETRA' },
+      { id: 11, nombre: 'VISITADOR', descripcion: 'VISITAS' },
+      { id: 12, nombre: 'ROL C', descripcion: 'ROL C' },
     ],
   });
 
