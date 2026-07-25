@@ -211,6 +211,8 @@ class AtencionesService {
     const existing = await this.findOne(id);
     if (existing.anulada) throw new BadRequestException('La atención ya está anulada');
     if (!dto.motivo?.trim()) throw new BadRequestException('Debes indicar el motivo de la anulación');
+    // Recepción (rol 7) no puede anular atenciones.
+    if (user.roleId === 7) throw new ForbiddenException('Tu rol no tiene permiso para anular atenciones.');
     if (user.roleId !== 1) {
       const enCerrada = await this.prisma.pago.findFirst({ where: { atencionId: id, cajaSesion: { estado: 'Cerrada' } } });
       if (enCerrada) throw new ForbiddenException('La atención tiene pagos en una caja cerrada; solo el administrador puede anularla.');

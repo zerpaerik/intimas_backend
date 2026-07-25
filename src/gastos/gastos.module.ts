@@ -110,6 +110,8 @@ class GastosService {
     const existing = await this.findOne(id);
     if (existing.anulada) throw new BadRequestException('El gasto ya está anulado');
     if (!dto.motivo?.trim()) throw new BadRequestException('Debes indicar el motivo de la anulación');
+    // Recepción (rol 7) no puede anular gastos.
+    if (user.roleId === 7) throw new ForbiddenException('Tu rol no tiene permiso para anular gastos.');
     if (user.roleId !== 1 && existing.cajaSesionId) {
       const caja = await this.prisma.cajaSesion.findUnique({ where: { id: existing.cajaSesionId } });
       if (caja?.estado === 'Cerrada') throw new ForbiddenException('El gasto pertenece a una caja cerrada; solo el administrador puede anularlo.');
