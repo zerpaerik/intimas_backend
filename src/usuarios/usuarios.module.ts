@@ -4,7 +4,7 @@ import {
 } from '@nestjs/common';
 import { PartialType } from '@nestjs/mapped-types';
 import { Type } from 'class-transformer';
-import { IsEmail, IsInt, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsBoolean, IsEmail, IsInt, IsOptional, IsString, MinLength } from 'class-validator';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -15,6 +15,7 @@ class CreateUserDto {
   @Type(() => Number) @IsInt() roleId: number;
   @IsOptional() @Type(() => Number) @IsInt() sedeId?: number;
   @IsOptional() @IsString() title?: string;
+  @IsOptional() @IsBoolean() activo?: boolean;
 }
 class UpdateUserDto extends PartialType(CreateUserDto) {}
 
@@ -25,6 +26,7 @@ const userSelect = {
   title: true,
   roleId: true,
   sedeId: true,
+  activo: true,
   createdAt: true,
   role: { select: { id: true, nombre: true } },
   sede: { select: { id: true, nombre: true } },
@@ -63,6 +65,7 @@ class UsuariosService {
           roleId: dto.roleId,
           sedeId: dto.sedeId ?? null,
           title: dto.title,
+          activo: dto.activo ?? true,
         },
         select: userSelect,
       });
@@ -81,6 +84,7 @@ class UsuariosService {
       title: dto.title,
       roleId: dto.roleId,
       sedeId: dto.sedeId,
+      activo: dto.activo,
     };
     if (dto.email) data.email = dto.email.trim().toLowerCase();
     if (dto.password) data.password = await bcrypt.hash(dto.password, 10);

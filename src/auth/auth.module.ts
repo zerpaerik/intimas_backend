@@ -49,6 +49,9 @@ class AuthService {
     if (!user || !(await bcrypt.compare(dto.password, user.password))) {
       throw new UnauthorizedException('Credenciales inválidas');
     }
+    if (!user.activo) {
+      throw new UnauthorizedException('Usuario deshabilitado. Contacta al administrador.');
+    }
     const access_token = await this.jwt.signAsync({
       sub: user.id,
       email: user.email,

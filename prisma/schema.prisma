@@ -62,6 +62,7 @@ model User {
   email              String       @unique
   password           String
   title              String?
+  activo             Boolean      @default(true)
   roleId             Int
   role               Role         @relation(fields: [roleId], references: [id])
   sedeId             Int?
