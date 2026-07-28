@@ -63,6 +63,7 @@ model User {
   password           String
   title              String?
   activo             Boolean      @default(true)
+  colegiatura        String?
   roleId             Int
   role               Role         @relation(fields: [roleId], references: [id])
   sedeId             Int?
@@ -74,6 +75,7 @@ model User {
   cajas              CajaSesion[] @relation("CajaUsuario")
   cajasCerradas      CajaSesion[] @relation("CajaCerrador")
   resultados         Resultado[]
+  historiasClinicas  HistoriaClinica[] @relation("HistoriaUsuario")
   mensajesEnviados   Mensaje[]    @relation("MensajesEnviados")
   mensajesRecibidos  Mensaje[]    @relation("MensajesRecibidos")
   createdAt          DateTime     @default(now())
@@ -403,6 +405,7 @@ model HistoriaClinica {
   cerrada         Boolean       @default(false)
   fechaCierre     DateTime?
   usuarioId       Int?
+  usuario         User?         @relation("HistoriaUsuario", fields: [usuarioId], references: [id])
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 }

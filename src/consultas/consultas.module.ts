@@ -22,7 +22,7 @@ const CONSULTA_INCLUDE = {
   paciente: { select: PACIENTE_SEL },
   especialista: { select: ESP_SEL },
   tipoConsulta: { select: { id: true, nombre: true } },
-  historia: { include: { diagnosticos: true, tratamientos: true } },
+  historia: { include: { diagnosticos: true, tratamientos: true, usuario: { select: { nombre: true, title: true, colegiatura: true } } } },
   control: { include: { gestacion: { include: { controles: { orderBy: { fecha: 'asc' as const } } } } } },
   pediatrica: true,
 };

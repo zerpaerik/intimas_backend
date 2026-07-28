@@ -16,6 +16,7 @@ class CreateUserDto {
   @IsOptional() @Type(() => Number) @IsInt() sedeId?: number;
   @IsOptional() @IsString() title?: string;
   @IsOptional() @IsBoolean() activo?: boolean;
+  @IsOptional() @IsString() colegiatura?: string;
 }
 class UpdateUserDto extends PartialType(CreateUserDto) {}
 
@@ -27,6 +28,7 @@ const userSelect = {
   roleId: true,
   sedeId: true,
   activo: true,
+  colegiatura: true,
   createdAt: true,
   role: { select: { id: true, nombre: true } },
   sede: { select: { id: true, nombre: true } },
@@ -66,6 +68,7 @@ class UsuariosService {
           sedeId: dto.sedeId ?? null,
           title: dto.title,
           activo: dto.activo ?? true,
+          colegiatura: dto.colegiatura,
         },
         select: userSelect,
       });
@@ -85,6 +88,7 @@ class UsuariosService {
       roleId: dto.roleId,
       sedeId: dto.sedeId,
       activo: dto.activo,
+      colegiatura: dto.colegiatura,
     };
     if (dto.email) data.email = dto.email.trim().toLowerCase();
     if (dto.password) data.password = await bcrypt.hash(dto.password, 10);
