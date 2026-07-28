@@ -41,6 +41,7 @@ async function main() {
       { id: 10, nombre: 'PROFESIONAL DE LA SALUD', descripcion: 'MEDICO/OBSTETRA' },
       { id: 11, nombre: 'VISITADOR', descripcion: 'VISITAS' },
       { id: 12, nombre: 'ROL C', descripcion: 'ROL C' },
+      { id: 13, nombre: 'Laboratorio', descripcion: 'Solo resultados de laboratorio' },
     ],
   });
 
