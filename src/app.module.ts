@@ -24,6 +24,7 @@ import { CajaModule } from './caja/caja.module';
 import { ResultadosModule } from './resultados/resultados.module';
 import { OtrosIngresosModule } from './otros-ingresos/otros-ingresos.module';
 import { MensajesModule } from './mensajes/mensajes.module';
+import { CitasModule } from './citas/citas.module';
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { MensajesModule } from './mensajes/mensajes.module';
     ResultadosModule,
     OtrosIngresosModule,
     MensajesModule,
+    CitasModule,
   ],
   controllers: [AppController],
 })
