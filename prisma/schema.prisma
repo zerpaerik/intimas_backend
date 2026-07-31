@@ -678,8 +678,9 @@ model Cita {
   hora          String
   motivo        String?
   monto         Decimal   @default(0) @db.Decimal(10, 2)
+  pagado        Decimal   @default(0) @db.Decimal(10, 2)
   metodoPago    String?
-  estadoPago    String    @default("Pendiente") // Pagado | Pendiente
+  estadoPago    String    @default("Pendiente") // Pagado | Parcial | Pendiente
   estado        String    @default("Programada") // Programada | Asistió | No asistió | Cancelada
   observaciones String?
   createdAt     DateTime  @default(now())

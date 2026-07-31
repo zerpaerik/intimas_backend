@@ -11,6 +11,11 @@ import { AuthModule, JwtAuthGuard } from '../auth/auth.module';
 const D = (v: Prisma.Decimal.Value) => new Prisma.Decimal(v);
 const ESTADOS = ['Programada', 'Asistió', 'No asistió', 'Cancelada'];
 
+function estadoDePago(monto: number, pagado: number) {
+  if (monto <= 0 || pagado >= monto) return 'Pagado';
+  return pagado > 0 ? 'Parcial' : 'Pendiente';
+}
+
 class CreateCitaDto {
   @Type(() => Number) @IsInt() pacienteId: number;
   @Type(() => Number) @IsInt() medicoId: number;
@@ -19,7 +24,7 @@ class CreateCitaDto {
   @IsOptional() @IsString() motivo?: string;
   @IsOptional() @Type(() => Number) @IsNumber() monto?: number;
   @IsOptional() @IsString() metodoPago?: string;
-  @IsOptional() @IsString() estadoPago?: string;
+  @IsOptional() @Type(() => Number) @IsNumber() pagado?: number; // abono inicial
   @IsOptional() @Type(() => Number) @IsInt() sedeId?: number;
   @IsOptional() @IsString() observaciones?: string;
 }
@@ -41,7 +46,8 @@ class EstadoDto {
   @IsIn(ESTADOS) estado: string;
 }
 
-class PagoCitaDto {
+class AbonoDto {
+  @Type(() => Number) @IsNumber() monto: number;
   @IsOptional() @IsString() metodoPago?: string;
 }
 
@@ -84,8 +90,8 @@ class CitasService {
     });
     if (dup) throw new BadRequestException('Ese turno ya está ocupado para el médico.');
     const monto = dto.monto ?? 0;
-    // Sin monto = sin cobro pendiente; con monto y no marcado pagado = queda Pendiente.
-    const estadoPago = dto.estadoPago === 'Pagado' ? 'Pagado' : monto > 0 ? 'Pendiente' : 'Pagado';
+    const pagado = Math.min(Math.max(dto.pagado ?? 0, 0), monto);
+    const estadoPago = estadoDePago(monto, pagado);
     return this.prisma.cita.create({
       data: {
         pacienteId: dto.pacienteId,
@@ -94,6 +100,7 @@ class CitasService {
         hora: dto.hora,
         motivo: dto.motivo,
         monto: D(monto),
+        pagado: D(pagado),
         metodoPago: dto.metodoPago,
         estadoPago,
         estado: 'Programada',
@@ -126,11 +133,13 @@ class CitasService {
     return this.prisma.cita.update({ where: { id }, data: { estado }, include: INCLUDE });
   }
 
-  async registrarPago(id: number, metodoPago?: string) {
-    await this.findOne(id);
+  async registrarAbono(id: number, monto: number, metodoPago?: string) {
+    const c = await this.findOne(id);
+    const total = Number(c.monto);
+    const nuevoPagado = Math.min(Number(c.pagado) + (monto || 0), total);
     return this.prisma.cita.update({
       where: { id },
-      data: { estadoPago: 'Pagado', ...(metodoPago ? { metodoPago } : {}) },
+      data: { pagado: D(nuevoPagado), estadoPago: estadoDePago(total, nuevoPagado), ...(metodoPago ? { metodoPago } : {}) },
       include: INCLUDE,
     });
   }
@@ -177,8 +186,8 @@ class CitasController {
   }
 
   @UseGuards(JwtAuthGuard)
-  @Post(':id/pago') registrarPago(@Param('id', ParseIntPipe) id: number, @Body() dto: PagoCitaDto) {
-    return this.service.registrarPago(id, dto.metodoPago);
+  @Post(':id/abono') registrarAbono(@Param('id', ParseIntPipe) id: number, @Body() dto: AbonoDto) {
+    return this.service.registrarAbono(id, dto.monto, dto.metodoPago);
   }
 }
 
