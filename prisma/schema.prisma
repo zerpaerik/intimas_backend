@@ -25,6 +25,7 @@ model Sede {
   gastos     Gasto[]
   cajas      CajaSesion[]
   citas      Cita[]
+  agenda     AgendaBloque[]
 }
 
 // Sesión de caja: el cajero abre, acumula sus operaciones del turno y cierra con arqueo.
@@ -80,6 +81,7 @@ model User {
   mensajesEnviados   Mensaje[]    @relation("MensajesEnviados")
   mensajesRecibidos  Mensaje[]    @relation("MensajesRecibidos")
   citas              Cita[]       @relation("CitaMedico")
+  agenda             AgendaBloque[] @relation("AgendaMedico")
   createdAt          DateTime     @default(now())
 }
 
@@ -684,5 +686,20 @@ model Cita {
   updatedAt     DateTime  @updatedAt
 
   @@index([fecha])
+  @@index([medicoId, fecha])
+}
+
+model AgendaBloque {
+  id         Int      @id @default(autoincrement())
+  medicoId   Int
+  medico     User     @relation("AgendaMedico", fields: [medicoId], references: [id])
+  sedeId     Int?
+  sede       Sede?    @relation(fields: [sedeId], references: [id])
+  fecha      DateTime
+  horaInicio String
+  horaFin    String
+  slotMin    Int      @default(20)
+  createdAt  DateTime @default(now())
+
   @@index([medicoId, fecha])
 }

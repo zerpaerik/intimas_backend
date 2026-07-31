@@ -75,8 +75,14 @@ class CitasService {
     return c;
   }
 
-  create(dto: CreateCitaDto, user: { sub?: number; sedeId?: number }) {
+  async create(dto: CreateCitaDto, user: { sub?: number; sedeId?: number }) {
     if (!dto.fecha || !dto.hora) throw new BadRequestException('Indica fecha y hora de la cita');
+    const fecha = new Date(`${dto.fecha}T00:00:00`);
+    // El turno ocupado bloquea; agendar fuera de horario se permite (solo se advierte en el front).
+    const dup = await this.prisma.cita.findFirst({
+      where: { medicoId: dto.medicoId, fecha, hora: dto.hora, estado: { not: 'Cancelada' } },
+    });
+    if (dup) throw new BadRequestException('Ese turno ya está ocupado para el médico.');
     const monto = dto.monto ?? 0;
     // Sin monto = sin cobro pendiente; con monto y no marcado pagado = queda Pendiente.
     const estadoPago = dto.estadoPago === 'Pagado' ? 'Pagado' : monto > 0 ? 'Pendiente' : 'Pagado';
@@ -84,7 +90,7 @@ class CitasService {
       data: {
         pacienteId: dto.pacienteId,
         medicoId: dto.medicoId,
-        fecha: new Date(`${dto.fecha}T00:00:00`),
+        fecha,
         hora: dto.hora,
         motivo: dto.motivo,
         monto: D(monto),
