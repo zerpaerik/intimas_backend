@@ -3,13 +3,18 @@ import {
   Post, Req, UnauthorizedException, UseGuards,
 } from '@nestjs/common';
 import { JwtModule, JwtService } from '@nestjs/jwt';
-import { IsString } from 'class-validator';
+import { IsString, MinLength } from 'class-validator';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
 
 class LoginDto {
   @IsString() email: string;
   @IsString() password: string;
+}
+
+class ChangePasswordDto {
+  @IsString() actual: string;
+  @IsString() @MinLength(4) nueva: string;
 }
 
 @Injectable()
@@ -67,6 +72,17 @@ class AuthService {
     });
     return this.sanitize(user);
   }
+
+  async changePassword(userId: number, dto: ChangePasswordDto) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException('Sesión inválida');
+    if (!(await bcrypt.compare(dto.actual, user.password))) {
+      throw new UnauthorizedException('La contraseña actual no es correcta');
+    }
+    const password = await bcrypt.hash(dto.nueva, 10);
+    await this.prisma.user.update({ where: { id: userId }, data: { password } });
+    return { ok: true };
+  }
 }
 
 @Controller('auth')
@@ -82,6 +98,12 @@ class AuthController {
   @Get('me')
   me(@Req() req: any) {
     return this.auth.me(req.user.sub);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('change-password')
+  changePassword(@Body() dto: ChangePasswordDto, @Req() req: any) {
+    return this.auth.changePassword(req.user.sub, dto);
   }
 }
 
