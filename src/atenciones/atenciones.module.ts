@@ -234,6 +234,17 @@ class AtencionesService {
       return tx.atencion.findUnique({ where: { id }, include: INCLUDE });
     });
   }
+
+  async cambiarMetodo(id: number, metodo: string) {
+    if (!metodo?.trim()) throw new BadRequestException('Indica el método de pago');
+    await this.findOne(id);
+    await this.prisma.pago.updateMany({ where: { atencionId: id, anulado: false }, data: { metodo: metodo.trim() } });
+    return this.findOne(id);
+  }
+}
+
+class MetodoPagoDto {
+  @IsString() metodo: string;
 }
 
 @Controller('atenciones')
@@ -266,6 +277,11 @@ class AtencionesController {
   @UseGuards(JwtAuthGuard)
   @Post(':id/pagos') addPago(@Param('id', ParseIntPipe) id: number, @Body() dto: CobroDto, @Req() req: { user: { sub?: number } }) {
     return this.service.addPago(id, dto, req.user);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch(':id/metodo') cambiarMetodo(@Param('id', ParseIntPipe) id: number, @Body() dto: MetodoPagoDto) {
+    return this.service.cambiarMetodo(id, dto.metodo);
   }
 
   @UseGuards(JwtAuthGuard)
