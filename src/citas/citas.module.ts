@@ -56,6 +56,7 @@ const INCLUDE = {
   paciente: { select: { id: true, nombres: true, apellidos: true, tipoDoc: true, numDoc: true, telefono: true } },
   medico: { select: { id: true, nombre: true, colegiatura: true } },
   sede: { select: { id: true, nombre: true } },
+  atenciones: { select: { id: true }, orderBy: { id: 'desc' as const }, take: 1 },
 } satisfies Prisma.CitaInclude;
 
 @Injectable()

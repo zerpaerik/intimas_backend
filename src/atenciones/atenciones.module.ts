@@ -39,6 +39,7 @@ class CreateAtencionDto {
   @IsArray() @ValidateNested({ each: true }) @Type(() => ItemDto) items: ItemDto[];
   @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => PagoInputDto) pagos?: PagoInputDto[];
   @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => ConsultaInputDto) consultas?: ConsultaInputDto[];
+  @IsOptional() @Type(() => Number) @IsInt() citaId?: number;
 }
 class UpdateAtencionDto extends PartialType(CreateAtencionDto) {}
 class AnularDto {
@@ -116,6 +117,10 @@ class AtencionesService {
   async create(dto: CreateAtencionDto, user: { sub?: number; sedeId?: number }) {
     const caja = await requireCajaAbierta(this.prisma, dto.sedeId ?? user.sedeId);
     return this.prisma.$transaction(async (tx) => {
+      if (dto.citaId) {
+        const ya = await tx.atencion.findFirst({ where: { citaId: dto.citaId }, select: { id: true } });
+        if (ya) throw new BadRequestException('Esta cita ya fue convertida en atención.');
+      }
       const at = await tx.atencion.create({
         data: {
           pacienteId: dto.pacienteId,
@@ -123,6 +128,7 @@ class AtencionesService {
           origenValor: dto.origenValor,
           observaciones: dto.observaciones,
           sedeId: dto.sedeId ?? null,
+          citaId: dto.citaId ?? null,
           usuarioId: user.sub ?? null,
           items: { create: dto.items.map((i) => ({ kind: i.kind, nombre: i.nombre, monto: D(i.monto) })) },
         },
@@ -159,6 +165,11 @@ class AtencionesService {
             usuarioId: at.usuarioId,
           })),
         });
+      }
+      // Conversión desde cita: hereda los pagos ya hechos en la cita (no se re-cobra;
+      // cada pago mantiene su fecha y su turno de caja original).
+      if (dto.citaId) {
+        await tx.pago.updateMany({ where: { citaId: dto.citaId, anulado: false }, data: { atencionId: at.id } });
       }
       await this.recompute(tx, at.id);
       return tx.atencion.findUnique({ where: { id: at.id }, include: INCLUDE });

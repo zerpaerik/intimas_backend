@@ -252,6 +252,8 @@ model Atencion {
   usuario       User?          @relation("AtencionRegistrador", fields: [usuarioId], references: [id])
   sedeId        Int?
   sede          Sede?          @relation(fields: [sedeId], references: [id])
+  citaId        Int?
+  cita          Cita?          @relation(fields: [citaId], references: [id])
   items         AtencionItem[]
   pagos         Pago[]
   consultas     Consulta[]
@@ -694,6 +696,7 @@ model Cita {
   estado        String    @default("Programada") // Programada | Asistió | No asistió | Cancelada
   observaciones String?
   pagos         Pago[]
+  atenciones    Atencion[]
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
