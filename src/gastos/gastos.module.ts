@@ -68,8 +68,8 @@ class GastosService {
     return g;
   }
 
-  async create(dto: CreateGastoDto, user: { sub?: number }) {
-    const caja = await requireCajaAbierta(this.prisma, user.sub);
+  async create(dto: CreateGastoDto, user: { sub?: number; sedeId?: number }) {
+    const caja = await requireCajaAbierta(this.prisma, dto.sedeId ?? user.sedeId);
     return this.prisma.gasto.create({
       data: {
         descripcion: dto.descripcion,

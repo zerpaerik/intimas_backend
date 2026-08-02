@@ -45,7 +45,7 @@ class OtrosIngresosService {
   async create(dto: CreateOtroIngresoDto, user: { sub?: number; sedeId?: number }) {
     if (!dto.concepto?.trim()) throw new BadRequestException('Indica el concepto del ingreso');
     if (!dto.monto || dto.monto <= 0) throw new BadRequestException('El monto debe ser mayor a 0');
-    const caja = await requireCajaAbierta(this.prisma, user.sub);
+    const caja = await requireCajaAbierta(this.prisma, dto.sedeId ?? user.sedeId);
     return this.prisma.pago.create({
       data: {
         atencionId: null,

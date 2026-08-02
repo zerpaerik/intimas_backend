@@ -61,20 +61,22 @@ class CajaService {
 
   async abrir(dto: AbrirCajaDto, user: ReqUser) {
     if (!user.sub) throw new ForbiddenException('Sesión inválida');
-    const abierta = await getCajaAbierta(this.prisma, user.sub);
-    if (abierta) throw new ForbiddenException('Ya tienes una caja abierta. Ciérrala antes de abrir otra.');
+    const sedeId = dto.sedeId ?? user.sedeId ?? null;
+    if (!sedeId) throw new ForbiddenException('Indica la sede para abrir el turno.');
+    const abierta = await getCajaAbierta(this.prisma, sedeId);
+    if (abierta) throw new ForbiddenException('Ya hay un turno de caja abierto en esta sede. Ciérralo antes de abrir otro.');
     return this.prisma.cajaSesion.create({
       data: {
         usuarioId: user.sub,
-        sedeId: dto.sedeId ?? user.sedeId ?? null,
+        sedeId,
         montoInicial: D(dto.montoInicial ?? 0),
         observacionApertura: dto.observacion ?? null,
       },
     });
   }
 
-  async actual(user: ReqUser) {
-    const caja = await getCajaAbierta(this.prisma, user.sub);
+  async actual(sedeId?: number | null) {
+    const caja = await getCajaAbierta(this.prisma, sedeId ?? null);
     if (!caja) return { caja: null };
     const { pagos, gastos } = await this.movimientos(caja.id);
     return { caja, resumen: this.resumen(caja, pagos, gastos), cantidadPagos: pagos.length, cantidadGastos: gastos.length };
@@ -84,9 +86,6 @@ class CajaService {
     const caja = await this.prisma.cajaSesion.findUnique({ where: { id } });
     if (!caja) throw new NotFoundException('Caja no encontrada');
     if (caja.estado === 'Cerrada') throw new ForbiddenException('La caja ya está cerrada');
-    if (caja.usuarioId !== user.sub && user.roleId !== 1) {
-      throw new ForbiddenException('Solo el dueño de la caja o un administrador puede cerrarla');
-    }
     const { pagos, gastos } = await this.movimientos(id);
     const r = this.resumen(caja, pagos, gastos);
     const contado: Record<string, number> = {};
@@ -115,8 +114,7 @@ class CajaService {
 
   async listar(params: { sedeId?: number; usuarioId?: number; estado?: string; desde?: string; hasta?: string }, user: ReqUser) {
     const where: Prisma.CajaSesionWhereInput = {};
-    if (!this.esAdmin(user)) where.usuarioId = user.sub;
-    else if (params.usuarioId) where.usuarioId = params.usuarioId;
+    if (params.usuarioId) where.usuarioId = params.usuarioId;
     if (params.sedeId) where.sedeId = params.sedeId;
     if (params.estado) where.estado = params.estado;
     if (params.desde || params.hasta) {
@@ -144,7 +142,6 @@ class CajaService {
       },
     });
     if (!caja) throw new NotFoundException('Caja no encontrada');
-    if (!this.esAdmin(user) && caja.usuarioId !== user.sub) throw new ForbiddenException('No autorizado');
     const [pagos, gastos] = await Promise.all([
       this.prisma.pago.findMany({
         where: { cajaSesionId: id },
@@ -175,8 +172,8 @@ class CajaController {
   }
 
   @UseGuards(JwtAuthGuard)
-  @Get('actual') actual(@Req() req: { user: ReqUser }) {
-    return this.service.actual(req.user);
+  @Get('actual') actual(@Query('sedeId') sedeId?: string) {
+    return this.service.actual(sedeId ? Number(sedeId) : undefined);
   }
 
   @UseGuards(JwtAuthGuard)

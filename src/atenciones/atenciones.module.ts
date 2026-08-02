@@ -114,7 +114,7 @@ class AtencionesService {
   }
 
   async create(dto: CreateAtencionDto, user: { sub?: number; sedeId?: number }) {
-    const caja = await requireCajaAbierta(this.prisma, user.sub);
+    const caja = await requireCajaAbierta(this.prisma, dto.sedeId ?? user.sedeId);
     return this.prisma.$transaction(async (tx) => {
       const at = await tx.atencion.create({
         data: {
@@ -197,7 +197,7 @@ class AtencionesService {
     if (existing.anulada) throw new BadRequestException('La atención está anulada');
     if (dto.monto <= 0) throw new BadRequestException('El monto debe ser mayor a 0');
     if (D(dto.monto).gt(existing.saldo)) throw new BadRequestException('El monto supera el saldo pendiente');
-    const caja = await requireCajaAbierta(this.prisma, user.sub);
+    const caja = await requireCajaAbierta(this.prisma, existing.sedeId);
     return this.prisma.$transaction(async (tx) => {
       await tx.pago.create({
         data: { atencionId: id, monto: D(dto.monto), metodo: dto.metodo, tipo: 'COBRO', sedeId: existing.sedeId, usuarioId: user.sub ?? null, cajaSesionId: caja.id },
