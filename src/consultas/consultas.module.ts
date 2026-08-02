@@ -67,6 +67,15 @@ class HistoriaDto {
   @IsOptional() @Type(() => Number) @IsInt() especialistaId?: number;
 }
 
+class TriajeDto {
+  @IsOptional() @IsString() peso?: string;
+  @IsOptional() @IsString() fc?: string;
+  @IsOptional() @IsString() fr?: string;
+  @IsOptional() @IsString() presionArterial?: string;
+  @IsOptional() @IsString() talla?: string;
+  @IsOptional() @IsString() temperatura?: string;
+}
+
 class GestacionDto {
   @IsOptional() @Type(() => Number) @IsInt() gestas?: number;
   @IsOptional() @Type(() => Number) @IsInt() partos?: number;
@@ -217,6 +226,20 @@ class ConsultasService {
       ? { OR: [{ codigo: { contains: search, mode: 'insensitive' } }, { descripcion: { contains: search, mode: 'insensitive' } }] }
       : {};
     return this.prisma.cie10.findMany({ where, take: 25, orderBy: { codigo: 'asc' } });
+  }
+
+  async guardarTriaje(id: number, dto: TriajeDto) {
+    return this.prisma.consulta.update({
+      where: { id },
+      data: {
+        triajePeso: dto.peso,
+        triajeFc: dto.fc,
+        triajeFr: dto.fr,
+        triajePa: dto.presionArterial,
+        triajeTalla: dto.talla,
+        triajeTemp: dto.temperatura,
+      },
+    });
   }
 
   async guardarHistoria(id: number, dto: HistoriaDto, user: { sub?: number }) {
@@ -372,6 +395,11 @@ class ConsultasController {
 
   @Get(':id') findOne(@Param('id', ParseIntPipe) id: number) {
     return this.service.findOne(id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post(':id/triaje') guardarTriaje(@Param('id', ParseIntPipe) id: number, @Body() dto: TriajeDto) {
+    return this.service.guardarTriaje(id, dto);
   }
 
   @UseGuards(JwtAuthGuard)

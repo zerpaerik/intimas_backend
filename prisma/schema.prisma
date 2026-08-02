@@ -373,6 +373,13 @@ model Consulta {
   estado         String              @default("Pendiente") // Pendiente | Atendida
   sedeId         Int?
   usuarioId      Int?
+  // Triaje: lo llena recepción tras registrar la atención; se precarga en la historia.
+  triajePeso     String?
+  triajeFc       String?
+  triajeFr       String?
+  triajePa       String?
+  triajeTalla    String?
+  triajeTemp     String?
   historia       HistoriaClinica?
   control        ControlPrenatal?
   pediatrica     HistoriaPediatrica?
