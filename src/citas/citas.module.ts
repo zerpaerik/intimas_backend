@@ -7,6 +7,7 @@ import { IsIn, IsInt, IsNumber, IsOptional, IsString } from 'class-validator';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthModule, JwtAuthGuard } from '../auth/auth.module';
+import { requireCajaAbierta } from '../caja/caja.util';
 
 const D = (v: Prisma.Decimal.Value) => new Prisma.Decimal(v);
 const ESTADOS = ['Programada', 'Asistió', 'No asistió', 'Cancelada'];
@@ -90,25 +91,35 @@ class CitasService {
     });
     if (dup) throw new BadRequestException('Ese turno ya está ocupado para el médico.');
     const monto = dto.monto ?? 0;
-    const pagado = Math.min(Math.max(dto.pagado ?? 0, 0), monto);
-    const estadoPago = estadoDePago(monto, pagado);
-    return this.prisma.cita.create({
-      data: {
-        pacienteId: dto.pacienteId,
-        medicoId: dto.medicoId,
-        fecha,
-        hora: dto.hora,
-        motivo: dto.motivo,
-        monto: D(monto),
-        pagado: D(pagado),
-        metodoPago: dto.metodoPago,
-        estadoPago,
-        estado: 'Programada',
-        observaciones: dto.observaciones,
-        sedeId: dto.sedeId ?? user.sedeId ?? null,
-        usuarioId: user.sub ?? null,
-      },
-      include: INCLUDE,
+    const abono = Math.min(Math.max(dto.pagado ?? 0, 0), monto);
+    const sedeId = dto.sedeId ?? user.sedeId ?? null;
+    const metodo = dto.metodoPago ?? 'Efectivo';
+    return this.prisma.$transaction(async (tx) => {
+      // Si hay abono, exige turno de caja abierto: el dinero cae en el turno de HOY.
+      const caja = abono > 0 ? await requireCajaAbierta(tx, sedeId) : null;
+      const cita = await tx.cita.create({
+        data: {
+          pacienteId: dto.pacienteId,
+          medicoId: dto.medicoId,
+          fecha,
+          hora: dto.hora,
+          motivo: dto.motivo,
+          monto: D(monto),
+          pagado: D(abono),
+          metodoPago: dto.metodoPago,
+          estadoPago: estadoDePago(monto, abono),
+          estado: 'Programada',
+          observaciones: dto.observaciones,
+          sedeId,
+          usuarioId: user.sub ?? null,
+        },
+      });
+      if (abono > 0 && caja) {
+        await tx.pago.create({
+          data: { citaId: cita.id, monto: D(abono), metodo, tipo: 'CITA_ABONO', sedeId, usuarioId: user.sub ?? null, cajaSesionId: caja.id },
+        });
+      }
+      return tx.cita.findUnique({ where: { id: cita.id }, include: INCLUDE });
     });
   }
 
@@ -133,14 +144,23 @@ class CitasService {
     return this.prisma.cita.update({ where: { id }, data: { estado }, include: INCLUDE });
   }
 
-  async registrarAbono(id: number, monto: number, metodoPago?: string) {
+  async registrarAbono(id: number, monto: number, metodoPago: string | undefined, user: { sub?: number }) {
     const c = await this.findOne(id);
     const total = Number(c.monto);
-    const nuevoPagado = Math.min(Number(c.pagado) + (monto || 0), total);
-    return this.prisma.cita.update({
-      where: { id },
-      data: { pagado: D(nuevoPagado), estadoPago: estadoDePago(total, nuevoPagado), ...(metodoPago ? { metodoPago } : {}) },
-      include: INCLUDE,
+    const abono = Math.min(Math.max(monto || 0, 0), total - Number(c.pagado));
+    if (abono <= 0) throw new BadRequestException('No hay saldo por cobrar o el monto no es válido');
+    const metodo = metodoPago ?? c.metodoPago ?? 'Efectivo';
+    return this.prisma.$transaction(async (tx) => {
+      const caja = await requireCajaAbierta(tx, c.sedeId);
+      await tx.pago.create({
+        data: { citaId: id, monto: D(abono), metodo, tipo: 'CITA_COBRO', sedeId: c.sedeId, usuarioId: user.sub ?? null, cajaSesionId: caja.id },
+      });
+      const nuevoPagado = Number(c.pagado) + abono;
+      return tx.cita.update({
+        where: { id },
+        data: { pagado: D(nuevoPagado), estadoPago: estadoDePago(total, nuevoPagado), metodoPago: metodo },
+        include: INCLUDE,
+      });
     });
   }
 }
@@ -186,8 +206,8 @@ class CitasController {
   }
 
   @UseGuards(JwtAuthGuard)
-  @Post(':id/abono') registrarAbono(@Param('id', ParseIntPipe) id: number, @Body() dto: AbonoDto) {
-    return this.service.registrarAbono(id, dto.monto, dto.metodoPago);
+  @Post(':id/abono') registrarAbono(@Param('id', ParseIntPipe) id: number, @Body() dto: AbonoDto, @Req() req: { user: { sub?: number } }) {
+    return this.service.registrarAbono(id, dto.monto, dto.metodoPago, req.user);
   }
 }
 
