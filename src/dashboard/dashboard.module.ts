@@ -30,13 +30,21 @@ class DashboardService {
     desde.setDate(now.getDate() - 13);
     desde.setHours(0, 0, 0, 0);
     const rango = { gte: desde };
-    const [ats, pagos, gastos, totalAtenciones, pacientes, profesionales, servicios, analisis, paquetes] = await Promise.all([
+    // Las cifras de dinero se miden sobre el/los TURNO(S) de caja ABIERTO(S), no
+    // sobre el día calendario: al cerrar la caja no hay turno abierto → todo queda
+    // en cero hasta que se abra el siguiente (cada turno lleva su propia cuenta).
+    // Con una sede seleccionada es el turno de esa sede; en "todas las sedes" suma
+    // los turnos abiertos de todas.
+    const cajaAbierta = { estado: 'Abierta', ...sedeF };
+    const [ats, pagos, turnoPagos, turnoGastos, turnosAbiertos, totalAtenciones, pacientes, profesionales, servicios, analisis, paquetes] = await Promise.all([
       this.prisma.atencion.findMany({
         where: { anulada: false, fecha: rango, ...sedeF },
         include: { items: true, paciente: { select: { nombres: true, apellidos: true } } },
       }),
       this.prisma.pago.findMany({ where: { anulado: false, fecha: rango, ...sedeF }, select: { monto: true, metodo: true, fecha: true } }),
-      this.prisma.gasto.findMany({ where: { anulada: false, fecha: rango, ...sedeF }, select: { monto: true, fecha: true } }),
+      this.prisma.pago.findMany({ where: { anulado: false, cajaSesion: { is: cajaAbierta } }, select: { monto: true, metodo: true } }),
+      this.prisma.gasto.findMany({ where: { anulada: false, cajaSesion: { is: cajaAbierta } }, select: { monto: true } }),
+      this.prisma.cajaSesion.count({ where: cajaAbierta }),
       this.prisma.atencion.count({ where: { anulada: false, ...sedeF } }),
       this.prisma.paciente.count(),
       this.prisma.profesional.count(),
@@ -44,23 +52,21 @@ class DashboardService {
       this.prisma.analisis.count(),
       this.prisma.paquete.count(),
     ]);
-    const hoyPagos = pagos.filter((p) => sameDay(new Date(p.fecha), now));
     const hoyAts = ats.filter((a) => sameDay(new Date(a.fecha), now));
-    const hoyGastos = gastos.filter((g) => sameDay(new Date(g.fecha), now));
-    const byMetodo = (list: typeof pagos, metodo: string) =>
+    const byMetodo = (list: { monto: unknown; metodo: string }[], metodo: string) =>
       list.filter((p) => p.metodo === metodo).reduce((s, p) => s + Number(p.monto), 0);
     const sumMonto = (list: { monto: unknown }[]) => list.reduce((s, x) => s + Number(x.monto), 0);
 
-    const ingresosHoy = sumMonto(hoyPagos);
-    const gastosHoy = sumMonto(hoyGastos);
+    const ingresosTurno = sumMonto(turnoPagos);
+    const gastosTurno = sumMonto(turnoGastos);
     const kpisHoy = {
-      efectivo: byMetodo(hoyPagos, 'Efectivo'),
-      tarjeta: byMetodo(hoyPagos, 'Tarjeta'),
-      deposito: byMetodo(hoyPagos, 'Depósito'),
-      yape: byMetodo(hoyPagos, 'Yape'),
-      total: ingresosHoy,
-      gastos: gastosHoy,
-      neto: ingresosHoy - gastosHoy,
+      efectivo: byMetodo(turnoPagos, 'Efectivo'),
+      tarjeta: byMetodo(turnoPagos, 'Tarjeta'),
+      deposito: byMetodo(turnoPagos, 'Depósito'),
+      yape: byMetodo(turnoPagos, 'Yape'),
+      total: ingresosTurno,
+      gastos: gastosTurno,
+      neto: ingresosTurno - gastosTurno,
       atenciones: hoyAts.length,
     };
 
@@ -74,9 +80,9 @@ class DashboardService {
       atencionesPorDia.push({ dia, atenciones: ats.filter((a) => sameDay(new Date(a.fecha), d)).length });
     }
 
-    // Distribuciones del día
+    // Distribución de métodos del turno de caja abierto (dona)
     const pagoTotals: Record<string, number> = {};
-    for (const p of hoyPagos) pagoTotals[p.metodo] = (pagoTotals[p.metodo] ?? 0) + Number(p.monto);
+    for (const p of turnoPagos) pagoTotals[p.metodo] = (pagoTotals[p.metodo] ?? 0) + Number(p.monto);
     const metodosPago = Object.entries(pagoTotals)
       .filter(([, v]) => v > 0)
       .map(([name, value]) => ({ name, value, color: PAGO_COLORS[name] ?? '#64748b' }));
@@ -111,6 +117,7 @@ class DashboardService {
 
     return {
       kpisHoy,
+      turnosAbiertos,
       ingresosPorDia,
       atencionesPorDia,
       metodosPago,
