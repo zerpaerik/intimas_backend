@@ -228,6 +228,12 @@ class ResultadosService implements OnModuleInit {
     return { item, categoria };
   }
 
+  /** Fecha solo-día (YYYY-MM-DD) → mediodía UTC para que no se corra un día al mostrarla (Perú es UTC-5). */
+  private parseFecha(s?: string) {
+    if (!s) return new Date();
+    return /^\d{4}-\d{2}-\d{2}$/.test(s) ? new Date(`${s}T12:00:00Z`) : new Date(s);
+  }
+
   async crearInforme(dto: CrearInformeDto, user?: { sub?: number }) {
     const { item, categoria } = await this.itemParaResultado(dto.atencionItemId);
     return this.prisma.resultado.create({
@@ -242,7 +248,7 @@ class ResultadosService implements OnModuleInit {
         informeHtml: dto.informeHtml,
         profesionalId: dto.profesionalId ?? null,
         observaciones: dto.observaciones ?? null,
-        fechaResultado: dto.fechaResultado ? new Date(dto.fechaResultado) : new Date(),
+        fechaResultado: this.parseFecha(dto.fechaResultado),
         usuarioId: user?.sub ?? null,
       },
       include: RESULT_INCLUDE,
@@ -268,7 +274,7 @@ class ResultadosService implements OnModuleInit {
         laboratorioId: dto.laboratorioId ?? null,
         profesionalId: dto.profesionalId ?? null,
         observaciones: dto.observaciones ?? null,
-        fechaResultado: dto.fechaResultado ? new Date(dto.fechaResultado) : new Date(),
+        fechaResultado: this.parseFecha(dto.fechaResultado),
         usuarioId: user?.sub ?? null,
       },
       include: RESULT_INCLUDE,
