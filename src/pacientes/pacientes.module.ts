@@ -66,7 +66,7 @@ class PacientesService extends BaseCrudService {
     const resultadosRows = await this.prisma.resultado.findMany({
       where: { pacienteId: id },
       orderBy: { fechaResultado: 'desc' },
-      take: 20,
+      take: 200,
       select: { id: true, nombre: true, tipo: true, categoria: true, fechaResultado: true, archivoPath: true },
     });
     const resultados = resultadosRows.map((r) => ({
