@@ -23,8 +23,8 @@ const CONSULTA_INCLUDE = {
   especialista: { select: ESP_SEL },
   tipoConsulta: { select: { id: true, nombre: true } },
   historia: { include: { diagnosticos: true, tratamientos: true, usuario: { select: { nombre: true, title: true, colegiatura: true } } } },
-  control: { include: { gestacion: { include: { controles: { orderBy: { fecha: 'asc' as const } } } } } },
-  pediatrica: true,
+  control: { include: { gestacion: { include: { controles: { orderBy: { fecha: 'asc' as const } } } }, usuario: { select: { nombre: true, title: true, colegiatura: true } } } },
+  pediatrica: { include: { usuario: { select: { nombre: true, title: true, colegiatura: true } } } },
 };
 
 class DiagnosticoDto {

@@ -78,6 +78,8 @@ model User {
   cajasCerradas      CajaSesion[] @relation("CajaCerrador")
   resultados         Resultado[]
   historiasClinicas  HistoriaClinica[] @relation("HistoriaUsuario")
+  controlesPrenatales ControlPrenatal[] @relation("ControlUsuario")
+  historiasPediatricas HistoriaPediatrica[] @relation("PediatriaUsuario")
   mensajesEnviados   Mensaje[]    @relation("MensajesEnviados")
   mensajesRecibidos  Mensaje[]    @relation("MensajesRecibidos")
   citas              Cita[]       @relation("CitaMedico")
@@ -514,6 +516,7 @@ model HistoriaPediatrica {
   cerrada             Boolean   @default(false)
   fechaCierre         DateTime?
   usuarioId           Int?
+  usuario             User?     @relation("PediatriaUsuario", fields: [usuarioId], references: [id])
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
@@ -556,6 +559,7 @@ model ControlPrenatal {
   cerrada            Boolean    @default(false)
   fechaCierre        DateTime?
   usuarioId          Int?
+  usuario            User?      @relation("ControlUsuario", fields: [usuarioId], references: [id])
   createdAt          DateTime   @default(now())
   updatedAt          DateTime   @updatedAt
 
