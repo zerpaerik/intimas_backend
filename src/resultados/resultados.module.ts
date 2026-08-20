@@ -64,6 +64,13 @@ class SubirArchivoDto {
   @IsOptional() @IsString() observaciones?: string;
   @IsOptional() @IsString() fechaResultado?: string;
 }
+class SubirArchivoGrupoDto {
+  @IsString() atencionItemIds: string; // ids separados por coma: "12,15,18"
+  @IsOptional() @Type(() => Number) @IsInt() laboratorioId?: number;
+  @IsOptional() @Type(() => Number) @IsInt() profesionalId?: number;
+  @IsOptional() @IsString() observaciones?: string;
+  @IsOptional() @IsString() fechaResultado?: string;
+}
 class CreatePlantillaDto {
   @IsString() nombre: string;
   @IsString() tipo: string;
@@ -149,7 +156,7 @@ class ResultadosService implements OnModuleInit {
       orderBy: { atencion: { fecha: 'desc' } },
       take: 300,
     });
-    return items.map((it) => ({
+    const base = items.map((it) => ({
       itemId: it.id,
       kind: it.kind,
       nombre: it.nombre,
@@ -160,6 +167,46 @@ class ResultadosService implements OnModuleInit {
       origenValor: it.atencion.origenValor,
       paciente: it.atencion.paciente,
     }));
+    // Solo el carril de laboratorio agrupa: los análisis "Menos de 24 h" del mismo
+    // paciente en el mismo día se juntan en un ítem (el lab sube un solo PDF para todos).
+    if (track !== 'lab') return base.map((r) => ({ ...r, grupo: false, itemIds: [r.itemId] }));
+
+    const catalogo = await this.prisma.analisis.findMany({ select: { nombre: true, tiempoEntrega: true } });
+    const norm = (s?: string | null) => (s ?? '').trim().toLowerCase();
+    const entrega = new Map(catalogo.map((a) => [norm(a.nombre), a.tiempoEntrega]));
+    // Día en Perú (UTC-5, sin horario de verano) para no partir grupos por la noche.
+    const diaPeru = (f: Date) => new Date(new Date(f).getTime() - 5 * 3600 * 1000).toISOString().slice(0, 10);
+
+    const grupos = new Map<string, typeof base>();
+    const sueltos: typeof base = [];
+    for (const r of base) {
+      if (entrega.get(norm(r.nombre)) === 'MENOS_24') {
+        const key = `${r.paciente.id}|${diaPeru(r.fecha)}`;
+        const arr = grupos.get(key) ?? [];
+        arr.push(r);
+        grupos.set(key, arr);
+      } else {
+        sueltos.push(r);
+      }
+    }
+    const out: any[] = [];
+    for (const g of grupos.values()) {
+      if (g.length >= 2) {
+        out.push({
+          ...g[0],
+          nombre: `${g.length} análisis (Menos de 24 h)`,
+          monto: g.reduce((s, x) => s + Number(x.monto), 0),
+          grupo: true,
+          itemIds: g.map((x) => x.itemId),
+          analisis: g.map((x) => x.nombre),
+        });
+      } else {
+        out.push({ ...g[0], grupo: false, itemIds: [g[0].itemId] });
+      }
+    }
+    for (const r of sueltos) out.push({ ...r, grupo: false, itemIds: [r.itemId] });
+    out.sort((a, b) => +new Date(b.fecha) - +new Date(a.fecha));
+    return out;
   }
 
   /** Cola de guardados: resultados ya registrados del carril. */
@@ -279,6 +326,38 @@ class ResultadosService implements OnModuleInit {
       },
       include: RESULT_INCLUDE,
     });
+  }
+
+  /** Subida agrupada: un solo archivo (PDF) para varios análisis "Menos de 24 h"
+   *  del mismo paciente/día. Crea un resultado por análisis apuntando al mismo archivo. */
+  async subirArchivoGrupo(dto: SubirArchivoGrupoDto, file: UploadedFileLike | undefined, user?: { sub?: number }) {
+    if (!file) throw new BadRequestException('No se recibió ningún archivo');
+    const ids = (dto.atencionItemIds ?? '').split(',').map((s) => Number(s.trim())).filter((x) => Number.isInteger(x) && x > 0);
+    if (ids.length === 0) throw new BadRequestException('No se indicaron análisis para el grupo');
+    // Validar TODOS antes de escribir el archivo (si uno ya tiene resultado, no se adjunta nada).
+    const validados = await Promise.all(ids.map((id) => this.itemParaResultado(id)));
+    const saved = this.saveBuffer(file);
+    const fecha = this.parseFecha(dto.fechaResultado);
+    await this.prisma.resultado.createMany({
+      data: validados.map(({ item, categoria }) => ({
+        atencionItemId: item.id,
+        atencionId: item.atencionId,
+        pacienteId: item.atencion.pacienteId,
+        categoria,
+        tipo: item.kind,
+        nombre: item.nombre,
+        archivoNombre: saved.original,
+        archivoMime: saved.mime,
+        archivoTamano: saved.size,
+        archivoPath: saved.path,
+        laboratorioId: dto.laboratorioId ?? null,
+        profesionalId: dto.profesionalId ?? null,
+        observaciones: dto.observaciones ?? null,
+        fechaResultado: fecha,
+        usuarioId: user?.sub ?? null,
+      })),
+    });
+    return { count: validados.length };
   }
 
   private saveBuffer(file: UploadedFileLike) {
@@ -413,6 +492,17 @@ class ResultadosController {
     @Req() req: { user?: { sub?: number } },
   ) {
     return this.service.subirArchivo(dto, file, req.user);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 20 * 1024 * 1024 } }))
+  @Post('archivo-grupo')
+  subirArchivoGrupo(
+    @UploadedFile() file: UploadedFileLike,
+    @Body() dto: SubirArchivoGrupoDto,
+    @Req() req: { user?: { sub?: number } },
+  ) {
+    return this.service.subirArchivoGrupo(dto, file, req.user);
   }
 
   @Get(':id/archivo')
