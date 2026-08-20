@@ -87,9 +87,10 @@ class GastosService {
     });
   }
 
-  async update(id: number, dto: UpdateGastoDto) {
+  async update(id: number, dto: UpdateGastoDto, user: { roleId?: number }) {
     const existing = await this.findOne(id);
     if (existing.anulada) throw new BadRequestException('No se puede editar un gasto anulado');
+    if (user.roleId === 7) throw new ForbiddenException('Tu rol no tiene permiso para editar gastos.');
     return this.prisma.gasto.update({
       where: { id },
       data: {
@@ -144,8 +145,8 @@ class GastosController {
     return this.service.create(dto, req.user);
   }
   @UseGuards(JwtAuthGuard)
-  @Patch(':id') update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateGastoDto) {
-    return this.service.update(id, dto);
+  @Patch(':id') update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateGastoDto, @Req() req: { user: { roleId?: number } }) {
+    return this.service.update(id, dto, req.user);
   }
   @UseGuards(JwtAuthGuard)
   @Post(':id/anular') anular(@Param('id', ParseIntPipe) id: number, @Body() dto: AnularDto, @Req() req: { user: { sub?: number } }) {

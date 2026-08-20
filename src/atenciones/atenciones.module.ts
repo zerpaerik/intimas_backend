@@ -179,6 +179,7 @@ class AtencionesService {
   async update(id: number, dto: UpdateAtencionDto, user: { sub?: number; roleId?: number }) {
     const existing = await this.findOne(id);
     if (existing.anulada) throw new BadRequestException('No se puede editar una atención anulada');
+    if (user.roleId === 7) throw new ForbiddenException('Tu rol no tiene permiso para editar atenciones.');
     const hoy = sameDay(new Date(existing.fecha), new Date());
     if (!hoy && user.roleId !== 1) {
       throw new ForbiddenException('Solo el Administrador puede editar atenciones de días anteriores');
@@ -246,7 +247,8 @@ class AtencionesService {
     });
   }
 
-  async cambiarMetodo(id: number, metodo: string) {
+  async cambiarMetodo(id: number, metodo: string, user: { roleId?: number }) {
+    if (user.roleId === 7) throw new ForbiddenException('Tu rol no tiene permiso para cambiar el método de pago.');
     if (!metodo?.trim()) throw new BadRequestException('Indica el método de pago');
     await this.findOne(id);
     await this.prisma.pago.updateMany({ where: { atencionId: id, anulado: false }, data: { metodo: metodo.trim() } });
@@ -291,8 +293,8 @@ class AtencionesController {
   }
 
   @UseGuards(JwtAuthGuard)
-  @Patch(':id/metodo') cambiarMetodo(@Param('id', ParseIntPipe) id: number, @Body() dto: MetodoPagoDto) {
-    return this.service.cambiarMetodo(id, dto.metodo);
+  @Patch(':id/metodo') cambiarMetodo(@Param('id', ParseIntPipe) id: number, @Body() dto: MetodoPagoDto, @Req() req: { user: { roleId?: number } }) {
+    return this.service.cambiarMetodo(id, dto.metodo, req.user);
   }
 
   @UseGuards(JwtAuthGuard)
