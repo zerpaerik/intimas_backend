@@ -13,6 +13,7 @@ class CreateAnalisisDto {
   @IsOptional() @Type(() => Number) @IsNumber() costo?: number;
   @IsOptional() @Type(() => Number) @IsNumber() porcentaje?: number;
   @IsOptional() @IsString() tiempo?: string;
+  @IsOptional() @IsString() tiempoEntrega?: string;
   @IsOptional() @IsString() material?: string;
 }
 class UpdateAnalisisDto extends PartialType(CreateAnalisisDto) {}

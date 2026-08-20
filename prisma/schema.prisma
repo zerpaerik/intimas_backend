@@ -199,6 +199,7 @@ model Analisis {
   costo      Decimal   @default(0) @db.Decimal(10, 2)
   porcentaje Float     @default(0)
   tiempo     String?
+  tiempoEntrega String? // 'MENOS_24' | 'MAS_24' — agrupa los análisis rápidos en resultados pendientes
   material   String?
   paquetes   Paquete[] @relation("PaqueteAnalisis")
   createdAt  DateTime  @default(now())
