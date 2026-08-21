@@ -46,6 +46,63 @@ class ReportesService {
     return { pagos, porMetodo: porMetodo(pagos), total: sum(pagos), cantidad: pagos.length };
   }
 
+  /** Resumen diario por método de pago (estilo reporte del sistema anterior):
+   *  por día → Venta total, Efectivo, Tarjeta, Depósito, Yape, Egresos y Total (=Efectivo − Egresos). */
+  async resumenDiario(params: { desde?: string; hasta?: string; sedeId?: number }) {
+    const pagoWhere: Prisma.PagoWhereInput = { anulado: false };
+    const gastoWhere: Prisma.GastoWhereInput = { anulada: false };
+    if (params.desde || params.hasta) {
+      const f: Prisma.DateTimeFilter = {};
+      if (params.desde) f.gte = new Date(`${params.desde}T00:00:00`);
+      if (params.hasta) f.lte = new Date(`${params.hasta}T23:59:59.999`);
+      pagoWhere.fecha = f;
+      gastoWhere.fecha = f;
+    }
+    if (params.sedeId) { pagoWhere.sedeId = params.sedeId; gastoWhere.sedeId = params.sedeId; }
+
+    const [pagos, gastos] = await Promise.all([
+      this.prisma.pago.findMany({ where: pagoWhere, select: { monto: true, metodo: true, fecha: true } }),
+      this.prisma.gasto.findMany({ where: gastoWhere, select: { monto: true, fecha: true } }),
+    ]);
+
+    // Día en Perú (UTC-5, sin horario de verano) para no partir los días por la noche.
+    const diaPeru = (f: Date) => new Date(new Date(f).getTime() - 5 * 3600 * 1000).toISOString().slice(0, 10);
+    type Dia = { fecha: string; efectivo: Prisma.Decimal; tarjeta: Prisma.Decimal; deposito: Prisma.Decimal; yape: Prisma.Decimal; egresos: Prisma.Decimal };
+    const map = new Map<string, Dia>();
+    const get = (k: string): Dia => {
+      let d = map.get(k);
+      if (!d) { d = { fecha: k, efectivo: D(0), tarjeta: D(0), deposito: D(0), yape: D(0), egresos: D(0) }; map.set(k, d); }
+      return d;
+    };
+    for (const p of pagos) {
+      const d = get(diaPeru(p.fecha));
+      if (p.metodo === 'Efectivo') d.efectivo = d.efectivo.plus(p.monto);
+      else if (p.metodo === 'Tarjeta') d.tarjeta = d.tarjeta.plus(p.monto);
+      else if (p.metodo === 'Depósito') d.deposito = d.deposito.plus(p.monto);
+      else if (p.metodo === 'Yape') d.yape = d.yape.plus(p.monto);
+    }
+    for (const g of gastos) get(diaPeru(g.fecha)).egresos = get(diaPeru(g.fecha)).egresos.plus(g.monto);
+
+    const rows = [...map.values()]
+      .sort((a, b) => a.fecha.localeCompare(b.fecha))
+      .map((d) => ({
+        fecha: d.fecha,
+        ventaTotal: d.efectivo.plus(d.tarjeta).plus(d.deposito).plus(d.yape),
+        efectivo: d.efectivo,
+        tarjeta: d.tarjeta,
+        deposito: d.deposito,
+        yape: d.yape,
+        egresos: d.egresos,
+        total: d.efectivo.minus(d.egresos),
+      }));
+    const col = (k: keyof (typeof rows)[number]) => rows.reduce((s, r) => s.plus(r[k] as Prisma.Decimal), D(0));
+    const totales = {
+      ventaTotal: col('ventaTotal'), efectivo: col('efectivo'), tarjeta: col('tarjeta'),
+      deposito: col('deposito'), yape: col('yape'), egresos: col('egresos'), total: col('total'),
+    };
+    return { rows, totales, cantidad: rows.length, total: totales.ventaTotal };
+  }
+
   async cuentasPorCobrar(params: { sedeId?: number }) {
     const where: Prisma.AtencionWhereInput = { anulada: false, saldo: { gt: 0 } };
     if (params.sedeId) where.sedeId = params.sedeId;
@@ -235,6 +292,14 @@ class ReportesController {
     @Query('sedeId') sedeId?: string,
   ) {
     return this.service.ingresos({ desde, hasta, sedeId: sedeId ? Number(sedeId) : undefined });
+  }
+
+  @Get('resumen-diario') resumenDiario(
+    @Query('desde') desde?: string,
+    @Query('hasta') hasta?: string,
+    @Query('sedeId') sedeId?: string,
+  ) {
+    return this.service.resumenDiario({ desde, hasta, sedeId: sedeId ? Number(sedeId) : undefined });
   }
 
   @Get('cuentas-por-cobrar') cxc(@Query('sedeId') sedeId?: string) {
